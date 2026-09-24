@@ -17,6 +17,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<script src="firebase-config.js"></script>
 <style>
   :root{
     --ink-navy:#1B2438;
@@ -124,6 +125,41 @@
     body.sb-collapsed #menuToggle{ display:flex; }
   }
   body.no-anim #sidebar{ transition:none !important; }
+
+  /* ---------- SINCRONIZZAZIONE ---------- */
+  #cloudEntry{ display:flex !important; align-items:center; gap:7px; width:100%; text-decoration:none !important; margin:0 0 8px !important; padding:8px 10px !important; border-radius:8px; border:1px solid rgba(255,255,255,0.12) !important; background:rgba(255,255,255,0.04) !important; color:var(--text-on-navy) !important; font-size:12px !important; font-weight:600; }
+  #cloudEntry:hover{ border-color:var(--brass) !important; }
+  #cloudEntry .cdot, #cloudStatus .cdot{ width:8px; height:8px; border-radius:50%; background:#8a90a0; flex:none; }
+  .c-ok .cdot{ background:#5fbf7f !important; }
+  .c-sync .cdot{ background:var(--brass) !important; animation:cpulse 1s ease-in-out infinite; }
+  .c-warn .cdot{ background:#e0a24a !important; }
+  .c-err .cdot{ background:#e06a6d !important; }
+  @keyframes cpulse{ 50%{ opacity:.35; } }
+  #cloudStatus{ display:none; align-items:center; gap:6px; background:none; border:none; color:var(--text-on-navy-dim); font:inherit; font-size:11.5px; cursor:pointer; padding:2px 6px; border-radius:6px; }
+  #cloudStatus.show{ display:flex; }
+  #cloudStatus:hover{ color:var(--text-on-navy); background:rgba(255,255,255,0.06); }
+
+  #cloudOverlay{ display:none; position:fixed; inset:0; background:rgba(10,12,20,0.55); z-index:90; align-items:center; justify-content:center; padding:16px; }
+  #cloudOverlay.show{ display:flex; }
+  #cloudBox{ background:var(--paper); color:var(--text-ink); border-radius:14px; padding:20px 20px 16px; width:100%; max-width:380px; max-height:calc(100% - 20px); overflow-y:auto; box-shadow:0 20px 50px rgba(0,0,0,0.4); position:relative; font-size:13.5px; line-height:1.5; }
+  #cloudBox h3{ font-family:var(--font-serif); font-size:19px; margin:0 0 6px; }
+  #cloudBox h4{ font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-ink-dim); margin:18px 0 6px; }
+  #cloudBox p{ margin:0 0 10px; }
+  #cloudClose{ position:absolute; top:10px; right:10px; background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:var(--text-ink-dim); padding:4px 8px; border-radius:8px; }
+  #cloudClose:hover{ background:rgba(0,0,0,0.06); }
+  .cbtn{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:9px 12px; border-radius:9px; font-size:13.5px; font-weight:600; cursor:pointer; border:1px solid rgba(0,0,0,0.18); background:#fff; color:var(--text-ink); margin-bottom:8px; font-family:inherit; }
+  .cbtn:hover{ border-color:rgba(0,0,0,0.35); }
+  .cbtn.primary{ background:var(--ink-navy); color:#fff; border-color:var(--ink-navy); }
+  .cbtn.primary:hover{ background:var(--ink-navy-2); }
+  .cbtn:disabled{ opacity:.55; cursor:default; }
+  .crow{ display:flex; gap:8px; } .crow .cbtn{ flex:1; }
+  .cinput{ width:100%; padding:9px 10px; border-radius:9px; border:1px solid rgba(0,0,0,0.2); font-size:14px; font-family:inherit; margin-bottom:8px; background:#fff; color:var(--text-ink); }
+  .cor{ display:flex; align-items:center; gap:8px; color:var(--text-ink-dim); font-size:11.5px; margin:6px 0 10px; }
+  .cor::before, .cor::after{ content:''; flex:1; height:1px; background:rgba(0,0,0,0.15); }
+  .clink{ background:none; border:none; color:var(--ink-red); text-decoration:underline; cursor:pointer; font:inherit; font-size:12px; padding:0; }
+  #cloudErr{ color:var(--ink-red); font-size:12.5px; min-height:0; }
+  #cloudStateLine{ display:flex; align-items:center; gap:7px; font-weight:600; }
+  .cmuted{ color:var(--text-ink-dim); font-size:12px; }
 
   /* ---------- MAIN / PAGE ---------- */
   #main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--ink-navy-2); }
@@ -287,7 +323,7 @@
       <svg><use href="#ic-note"/></svg>
       <p>Nessuna nota qui.<br>Crea una nuova pagina per iniziare.</p>
     </div>
-    <div id="sidebar-foot">Le note restano salvate solo su questo dispositivo — non vengono sincronizzate altrove.<br>Nascondi il pannello con <span class="kbd">Ctrl</span>+<span class="kbd">B</span> per avere più spazio.
+    <div id="sidebar-foot"><button id="cloudEntry" type="button"><span class="cdot"></span><span id="cloudEntryText">Sincronizzazione e backup</span></button>Nascondi il pannello con <span class="kbd">Ctrl</span>+<span class="kbd">B</span> per avere più spazio.
       <button id="installHint" type="button">Come installare l&rsquo;app</button>
       <button id="downloadAppBtn" type="button">Scarica una copia dell&rsquo;app (.html)</button>
     </div>
@@ -314,6 +350,7 @@
         </div>
         <span id="dateLabel"></span>
         <span id="saveStatus">Salvato</span>
+        <button id="cloudStatus" type="button" title="Sincronizzazione"><span class="cdot"></span><span id="cloudStatusText"></span></button>
       </div>
     </header>
 
@@ -352,6 +389,49 @@
       </div>
     </div>
   </main>
+</div>
+
+<div id="cloudOverlay" role="dialog" aria-modal="true" aria-labelledby="cloudTitle">
+  <div id="cloudBox">
+    <button id="cloudClose" type="button" aria-label="Chiudi">&times;</button>
+    <h3 id="cloudTitle">Sincronizzazione</h3>
+
+    <div id="cloudUnconfigured" hidden>
+      <p class="cmuted">La sincronizzazione non è ancora collegata: manca la configurazione di Firebase nel file <code>firebase-config.js</code>. Nel frattempo le note restano salvate su questo dispositivo e puoi usare il backup qui sotto.</p>
+    </div>
+
+    <div id="cloudSignedOut" hidden>
+      <p>Accedi con lo <strong>stesso account</strong> su PC e telefono: le note si sincronizzano da sole, in pochi secondi.</p>
+      <button id="googleBtn" class="cbtn primary" type="button">Accedi con Google</button>
+      <div class="cor">oppure con email</div>
+      <input id="cloudEmail" class="cinput" type="email" autocomplete="email" placeholder="Email">
+      <input id="cloudPassword" class="cinput" type="password" autocomplete="current-password" placeholder="Password (almeno 6 caratteri)">
+      <div class="crow">
+        <button id="emailLoginBtn" class="cbtn" type="button">Accedi</button>
+        <button id="emailSignupBtn" class="cbtn" type="button">Crea account</button>
+      </div>
+      <button id="resetPwBtn" class="clink" type="button">Password dimenticata?</button>
+    </div>
+
+    <div id="cloudSignedIn" hidden>
+      <p id="cloudStateLine"><span class="cdot"></span><span id="cloudStateText"></span></p>
+      <p class="cmuted">Account: <strong id="cloudUserLabel"></strong></p>
+      <div class="crow">
+        <button id="syncNowBtn" class="cbtn" type="button">Sincronizza ora</button>
+        <button id="signOutBtn" class="cbtn" type="button">Esci</button>
+      </div>
+    </div>
+
+    <p id="cloudErr" role="alert"></p>
+
+    <h4>Copia di sicurezza</h4>
+    <p class="cmuted">Un file con tutte le note, da conservare (es. su Google Drive) o da importare su un altro dispositivo.</p>
+    <div class="crow">
+      <button id="exportAllBtn" class="cbtn" type="button">Esporta tutte le note</button>
+      <button id="importAllBtn" class="cbtn" type="button">Importa da file</button>
+    </div>
+    <input id="importFile" type="file" accept=".json,application/json" hidden>
+  </div>
 </div>
 
 <div id="modalOverlay">
@@ -448,13 +528,31 @@
     var bg = (activeNote && activeNote.bg) || 'lined';
     return { id:uid(), title:'', subject:'', favorite:false, bg:bg, pages:[freshPageWithBg(bg)], pageIndex:0, thumb:null, createdAt:Date.now(), updatedAt:Date.now() };
   }
+  /* Le note stanno in IndexedDB (molto più spazio del vecchio localStorage, ~5 MB);
+     le preferenze restano in localStorage. Le note del vecchio formato vengono spostate in automatico. */
+  var IDB_NAME = 'quaderno', IDB_STORE = 'kv', idbPromise = null, idbOk = true, legacyNotes = null;
+  function idbOpen(){
+    if(idbPromise) return idbPromise;
+    idbPromise = new Promise(function(res, rej){
+      if(!('indexedDB' in window)){ rej(new Error('IndexedDB non disponibile')); return; }
+      var req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = function(){ req.result.createObjectStore(IDB_STORE); };
+      req.onsuccess = function(){ res(req.result); };
+      req.onerror = function(){ rej(req.error); };
+      req.onblocked = function(){ rej(new Error('IndexedDB bloccato')); };
+    });
+    return idbPromise;
+  }
+  function idbGet(key){ return idbOpen().then(function(db){ return new Promise(function(res, rej){ var r = db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).get(key); r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }); }
+  function idbSet(key, val){ return idbOpen().then(function(db){ return new Promise(function(res, rej){ var tx = db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(val, key); tx.oncomplete=function(){ res(); }; tx.onerror=function(){ rej(tx.error); }; tx.onabort=function(){ rej(tx.error); }; }); }); }
+
   function loadState(){
     try{
       var raw = localStorage.getItem(STORAGE_KEY);
       if(raw){
         var parsed = JSON.parse(raw);
-        if(parsed && Array.isArray(parsed.notes)){
-          state.notes = parsed.notes;
+        if(parsed){
+          if(Array.isArray(parsed.notes)) legacyNotes = parsed.notes;
           state.activeId = parsed.activeId || null;
           if(parsed.ui){
             state.ui.tool = parsed.ui.tool || state.ui.tool;
@@ -467,6 +565,22 @@
         }
       }
     }catch(e){ console.warn('Quaderno: impossibile leggere il salvataggio locale', e); }
+  }
+  function loadNotes(){
+    return idbGet('notes').then(function(notes){
+      if(Array.isArray(notes)){ state.notes = notes; return; }
+      if(legacyNotes){
+        state.notes = legacyNotes;
+        return idbSet('notes', state.notes).then(function(){ writeUiPrefs(); }); // spostamento riuscito: tolgo le note dal localStorage
+      }
+    }).catch(function(e){
+      console.warn('Quaderno: IndexedDB non disponibile, uso il localStorage', e);
+      idbOk = false;
+      if(legacyNotes) state.notes = legacyNotes;
+    });
+  }
+  function finishLoad(){
+    state.notes = (state.notes||[]).filter(function(n){ return n && n.id; });
     state.notes.forEach(migrateNote);
     if(state.notes.length === 0){
       var first = freshNote();
@@ -491,13 +605,25 @@
       }
     }, 550);
   }
-  function persist(){
-    try{
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ notes: state.notes, activeId: state.activeId, ui: state.ui }));
-    }catch(e){
-      console.warn('Quaderno: salvataggio non riuscito (memoria del browser piena?)', e);
-      if(saveStatus){ saveStatus.textContent='Non salvato'; saveStatus.classList.add('show'); }
+  function writeUiPrefs(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeId: state.activeId, ui: state.ui, v:4 })); }catch(e){}
+  }
+  function showNotSaved(e){
+    console.warn('Quaderno: salvataggio non riuscito', e);
+    if(saveStatus){ saveStatus.textContent='Non salvato'; saveStatus.classList.add('show'); }
+  }
+  function persistLocal(){
+    if(idbOk){
+      writeUiPrefs();
+      idbSet('notes', state.notes).catch(showNotSaved);
+    } else {
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ notes: state.notes, activeId: state.activeId, ui: state.ui })); }
+      catch(e){ showNotSaved(e); }
     }
+  }
+  function persist(){
+    persistLocal();
+    if(cloud) cloud.schedulePush();
   }
 
   /* ===================== LAYOUT A SCORRIMENTO CONTINUO ===================== */
@@ -1017,6 +1143,7 @@
       if(idx===-1) return;
       delete history[id];
       state.notes.splice(idx,1);
+      if(cloud) cloud.markDeleted(id);
       if(state.notes.length===0){
         var n = freshNote();
         state.notes.push(n);
@@ -1063,6 +1190,7 @@
   pageAddBtn.addEventListener('click', function(){
     if(!activeNote) return;
     activeNote.pages.push(freshPageWithBg(activeNote.bg));
+    activeNote.updatedAt = Date.now();
     buildPagesLayout(true);
     scrollToPage(activeNote.pages.length-1);
     scheduleSync();
@@ -1079,6 +1207,7 @@
       }
       activeNote.pageIndex = Math.min(idx, activeNote.pages.length-1);
       activeNote.thumb = null;
+      activeNote.updatedAt = Date.now();
       buildPagesLayout(false);
       canvasOuter.scrollTop = pageOffsets[activeNote.pageIndex]||0;
       updateUndoRedoButtons();
@@ -1362,6 +1491,426 @@
     else if((e.ctrlKey||e.metaKey) && (e.shiftKey && e.key.toLowerCase()==='z' || e.key.toLowerCase()==='y')){ e.preventDefault(); redoBtn.click(); }
   });
 
+  /* ===================== SINCRONIZZAZIONE CLOUD (Firebase) =====================
+     Ogni nota è un documento in users/{uid}/notes/{id} (titolo, cartella, data…);
+     le pagine, compresse, stanno in users/{uid}/notes/{id}/chunks/{n}.
+     Regola in caso di modifiche su due dispositivi: vince la versione più recente della nota. */
+  var FB_VERSION = '12.19.0';
+  var SYNC_META_KEY = 'quaderno_sync_v1';
+  var CHUNK_CHARS = 700000; // ~700 KB per documento (limite Firestore: 1 MB)
+
+  var cloud = (function(){
+    var cfg = window.QUADERNO_FIREBASE_CONFIG || null;
+    var configured = !!(cfg && cfg.apiKey && cfg.projectId && !/INCOLLA/i.test(cfg.apiKey));
+    var fb = null, app = null, auth = null, db = null, user = null, unsub = null;
+    var loading = false, loadFailed = false;
+    var firstSnapshotDone = false;
+    var remoteInfo = {};  // id -> {updatedAt, chunks}
+    var pushTimer = null, pushing = false, pushAgain = false, retryTimer = null;
+    var applyQueue = Promise.resolve();
+    var status = configured ? 'starting' : 'unconfigured';
+    var lastError = '';
+    var meta = loadMeta();
+
+    function loadMeta(){
+      try{ var m = JSON.parse(localStorage.getItem(SYNC_META_KEY)||'null'); if(m && m.pushed && m.tomb) return m; }catch(e){}
+      return { uid:null, pushed:{}, tomb:{} };
+    }
+    function saveMeta(){ try{ localStorage.setItem(SYNC_META_KEY, JSON.stringify(meta)); }catch(e){} }
+
+    /* ---------- stato visibile ---------- */
+    var STATUS_TEXT = {
+      unconfigured: 'Sincronizzazione non attiva',
+      starting: 'Collegamento…',
+      signedout: 'Non sincronizzato — accedi',
+      syncing: 'Sincronizzazione…',
+      ok: 'Sincronizzato',
+      offline: 'Offline — sincronizzo appena torna la rete',
+      error: 'Errore di sincronizzazione'
+    };
+    var STATUS_CLASS = { ok:'c-ok', syncing:'c-sync', starting:'c-sync', offline:'c-warn', signedout:'c-warn', error:'c-err', unconfigured:'' };
+    function setStatus(s, err){
+      status = s;
+      if(err) lastError = friendlyError(err);
+      else if(s==='ok' || s==='syncing') lastError = '';
+      renderStatus();
+    }
+    function renderStatus(){
+      var cls = STATUS_CLASS[status] || '';
+      var hdr = $('cloudStatus'), ent = $('cloudEntry');
+      [hdr, ent, $('cloudStateLine')].forEach(function(el){ if(!el) return; el.classList.remove('c-ok','c-sync','c-warn','c-err'); if(cls) el.classList.add(cls); });
+      $('cloudStatusText').textContent = STATUS_TEXT[status] || '';
+      hdr.classList.toggle('show', status!=='unconfigured');
+      $('cloudEntryText').textContent = status==='unconfigured' ? 'Backup delle note' : (status==='signedout' ? 'Accedi per sincronizzare' : STATUS_TEXT[status]);
+      $('cloudStateText').textContent = STATUS_TEXT[status] || '';
+      $('cloudUnconfigured').hidden = status!=='unconfigured';
+      $('cloudSignedOut').hidden = !(configured && !user && status!=='starting');
+      $('cloudSignedIn').hidden = !user;
+      if(user) $('cloudUserLabel').textContent = user.email || user.displayName || 'account';
+      $('cloudErr').textContent = lastError || '';
+    }
+
+    function friendlyError(e){
+      var c = (e && (e.code || e.message)) || String(e);
+      var map = {
+        'auth/invalid-email': 'L\u2019indirizzo email non \u00e8 valido.',
+        'auth/invalid-credential': 'Email o password non corrette.',
+        'auth/wrong-password': 'Email o password non corrette.',
+        'auth/user-not-found': 'Nessun account con questa email: usa \u00abCrea account\u00bb.',
+        'auth/email-already-in-use': 'Esiste gi\u00e0 un account con questa email: usa \u00abAccedi\u00bb.',
+        'auth/weak-password': 'La password deve avere almeno 6 caratteri.',
+        'auth/missing-password': 'Scrivi la password.',
+        'auth/too-many-requests': 'Troppi tentativi: riprova tra qualche minuto.',
+        'auth/popup-blocked': 'Il browser ha bloccato la finestra di Google: consenti i popup oppure accedi con email.',
+        'auth/operation-not-supported-in-this-environment': 'Qui l\u2019accesso con Google non \u00e8 supportato: accedi con email e password.',
+        'auth/unauthorized-domain': 'Questo indirizzo non \u00e8 autorizzato: in Firebase aggiungilo in Authentication \u2192 Settings \u2192 Authorized domains.',
+        'auth/operation-not-allowed': 'Questo metodo di accesso non \u00e8 attivo in Firebase (Authentication \u2192 Sign-in method).',
+        'auth/network-request-failed': 'Nessuna connessione a internet.',
+        'permission-denied': 'Accesso negato dal database: controlla le regole di Firestore.',
+        'unavailable': 'Server non raggiungibile: riprovo in automatico.',
+        'load': 'Impossibile caricare la sincronizzazione (sei offline?). Riprovo quando torna la rete.'
+      };
+      for(var k in map){ if(c.indexOf(k)!==-1) return map[k]; }
+      return 'Errore: ' + c;
+    }
+
+    /* ---------- avvio ---------- */
+    function start(){
+      renderStatus();
+      if(!configured || fb || loading) return;
+      loading = true;
+      var base = 'https://www.gstatic.com/firebasejs/' + FB_VERSION + '/';
+      Promise.all([ import(base+'firebase-app.js'), import(base+'firebase-auth.js'), import(base+'firebase-firestore.js') ])
+      .then(function(m){
+        loading = false; loadFailed = false;
+        fb = Object.assign({}, m[0], m[1], m[2]);
+        app = fb.initializeApp(cfg);
+        auth = fb.getAuth(app);
+        try{ auth.languageCode = 'it'; }catch(e){}
+        db = fb.getFirestore(app);
+        fb.onAuthStateChanged(auth, onUser);
+      })
+      .catch(function(e){
+        loading = false; loadFailed = true;
+        console.warn('Quaderno: Firebase non caricato', e);
+        setStatus(navigator.onLine ? 'error' : 'offline', {code:'load'});
+      });
+    }
+    window.addEventListener('online', function(){
+      if(loadFailed) start();
+      if(user) pushSoon(0);
+    });
+    window.addEventListener('offline', function(){ if(user) setStatus('offline'); });
+
+    function onUser(u){
+      user = u;
+      if(unsub){ unsub(); unsub = null; }
+      firstSnapshotDone = false; remoteInfo = {};
+      if(!u){ setStatus('signedout'); return; }
+      if(meta.uid !== u.uid){ meta = { uid:u.uid, pushed:{}, tomb:{} }; saveMeta(); }
+      setStatus(navigator.onLine ? 'syncing' : 'offline');
+      unsub = fb.onSnapshot(fb.collection(db, 'users', u.uid, 'notes'),
+        function(snap){ applyQueue = applyQueue.then(function(){ return handleSnapshot(snap); }).catch(function(e){ console.warn(e); }); },
+        function(err){ console.warn('Quaderno: ascolto cloud interrotto', err); setStatus('error', err); });
+    }
+
+    /* ---------- dal cloud verso il dispositivo ---------- */
+    function findNote(id){ for(var i=0;i<state.notes.length;i++){ if(state.notes[i].id===id) return state.notes[i]; } return null; }
+    function isBlank(n){ return !n.title && !n.subject && n.pages.every(function(p){ return !p.strokes.length; }); }
+    function waitNotDrawing(){ return new Promise(function(res){ (function chk(){ if(!drawing) res(); else setTimeout(chk, 300); })(); }); }
+
+    function handleSnapshot(snap){
+      var effects = { changed:false, activeChanged:false, activeRemoved:false };
+      var jobs = snap.docChanges().map(function(ch){
+        if(ch.type==='removed') return Promise.resolve();
+        return applyRemote(ch.doc.id, ch.doc.data(), effects);
+      });
+      return Promise.all(jobs).then(function(){
+        if(!firstSnapshotDone){
+          firstSnapshotDone = true;
+          // primo accesso su un dispositivo nuovo: tolgo la nota vuota creata all'avvio se dal cloud sono arrivate note vere
+          if(effects.changed){
+            var blanks = state.notes.filter(function(n){ return isBlank(n) && meta.pushed[n.id]===undefined; });
+            if(blanks.length && blanks.length < state.notes.length){
+              blanks.forEach(function(b){ state.notes.splice(state.notes.indexOf(b),1); delete history[b.id]; if(activeNote && activeNote.id===b.id) effects.activeRemoved = true; });
+            }
+          }
+        }
+        saveMeta();
+        if(effects.changed) afterRemoteChange(effects);
+        pushSoon(0);
+      });
+    }
+
+    function applyRemote(id, r, effects){
+      var ru = r.updatedAt || 0;
+      remoteInfo[id] = { updatedAt: ru, chunks: r.chunks||0, deleted: !!r.deleted };
+      var local = findNote(id);
+      var lu = local ? (local.updatedAt||0) : 0;
+      if(r.deleted){
+        if(meta.tomb[id] && meta.tomb[id] <= ru){ delete meta.tomb[id]; }
+        if(local && lu <= ru){
+          state.notes.splice(state.notes.indexOf(local),1);
+          delete history[id];
+          if(activeNote && activeNote.id===id) effects.activeRemoved = true;
+          effects.changed = true;
+        }
+        if((meta.pushed[id]||0) < ru) meta.pushed[id] = ru;
+        return Promise.resolve();
+      }
+      if(meta.tomb[id] && meta.tomb[id] >= ru) return Promise.resolve(); // eliminata qui, in attesa di invio
+      if(local && lu >= ru) return Promise.resolve();                     // qui c'è già la stessa versione o una più nuova
+      return fetchPages(id, r).then(function(pages){
+        if(!pages) return; // salvataggio ancora in corso dall'altro dispositivo: arriverà col prossimo aggiornamento
+        var isActive = activeNote && activeNote.id===id;
+        return (isActive ? waitNotDrawing() : Promise.resolve()).then(function(){
+          var cur = findNote(id);
+          if(cur && (cur.updatedAt||0) >= ru) return;
+          var n = { id:id, title:r.title||'', subject:r.subject||'', favorite:!!r.favorite, bg:r.bg||'lined', pages:pages,
+                    pageIndex: cur ? cur.pageIndex : 0, thumb:r.thumb||null, createdAt:r.createdAt||ru, updatedAt:ru };
+          migrateNote(n);
+          if(cur) state.notes[state.notes.indexOf(cur)] = n; else state.notes.push(n);
+          delete meta.tomb[id];
+          meta.pushed[id] = ru;
+          effects.changed = true;
+          if(activeNote && activeNote.id===id){ activeNote = n; delete history[id]; effects.activeChanged = true; }
+        });
+      });
+    }
+
+    function fetchPages(id, r){
+      var count = r.chunks||0;
+      if(!count) return Promise.resolve([freshPageWithBg(r.bg||'lined')]);
+      var reads = [];
+      for(var i=0;i<count;i++) reads.push(fb.getDoc(fb.doc(db, 'users', user.uid, 'notes', id, 'chunks', String(i))));
+      return Promise.all(reads).then(function(docs){
+        var parts = [];
+        for(var i=0;i<docs.length;i++){
+          if(!docs[i].exists()) return null;
+          var d = docs[i].data();
+          if(d.rev !== r.updatedAt) return null;
+          parts.push(d.d||'');
+        }
+        return unpack(parts.join(''));
+      }).catch(function(e){ console.warn('Quaderno: lettura nota dal cloud non riuscita', e); return null; });
+    }
+
+    function afterRemoteChange(fx){
+      persistLocal();
+      if(state.notes.length===0){ var f = freshNote(); state.notes.push(f); fx.activeRemoved = true; }
+      if(fx.activeRemoved){
+        var newest = state.notes.slice().sort(function(a,b){ return b.updatedAt-a.updatedAt; })[0];
+        openNote(newest.id);
+      } else if(fx.activeChanged){
+        if(document.activeElement!==titleInput) titleInput.value = activeNote.title || '';
+        visiblePageIndex = clamp(visiblePageIndex, 0, activeNote.pages.length-1);
+        updateDateLabel(); updateSubjectPill(); updateFavBtn();
+        buildPagesLayout(true);
+        updateUndoRedoButtons();
+        renderSidebarList();
+      } else {
+        renderSidebarList();
+      }
+    }
+
+    /* ---------- dal dispositivo verso il cloud ---------- */
+    function needsPush(n){
+      if(meta.tomb[n.id]) return false;
+      var pu = meta.pushed[n.id];
+      if(pu===undefined && isBlank(n)) return false; // non carico le note vuote mai toccate
+      return (n.updatedAt||0) > (pu||0);
+    }
+    function pushSoon(delay){
+      if(!user) return;
+      if(pushTimer) clearTimeout(pushTimer);
+      pushTimer = setTimeout(pushNow, delay==null ? 1500 : delay);
+    }
+    function pushNow(){
+      pushTimer = null;
+      if(!user || !firstSnapshotDone) return;
+      if(pushing){ pushAgain = true; return; }
+      var todo = state.notes.filter(needsPush);
+      var tombs = Object.keys(meta.tomb);
+      if(!todo.length && !tombs.length){ setStatus(navigator.onLine ? 'ok' : 'offline'); return; }
+      pushing = true;
+      setStatus(navigator.onLine ? 'syncing' : 'offline');
+      var chain = Promise.resolve(), progressed = 0;
+      todo.forEach(function(n){ chain = chain.then(function(){ return pushNote(n); }).then(function(ok){ if(ok) progressed++; }); });
+      tombs.forEach(function(id){ chain = chain.then(function(){ return pushTomb(id); }).then(function(){ progressed++; }); });
+      chain.then(function(){
+        pushing = false; saveMeta();
+        if(pushAgain || progressed){ pushAgain = false; pushNow(); } // ricontrolla: nel frattempo potrebbe esserci altro
+        else setStatus(navigator.onLine ? 'ok' : 'offline');
+      }).catch(function(err){
+        pushing = false; pushAgain = false; saveMeta();
+        console.warn('Quaderno: invio al cloud non riuscito', err);
+        setStatus(navigator.onLine ? 'error' : 'offline', err);
+        if(retryTimer) clearTimeout(retryTimer);
+        retryTimer = setTimeout(function(){ pushSoon(0); }, 15000);
+      });
+    }
+    function pushNote(n){
+      var rev = n.updatedAt || Date.now();
+      var info = remoteInfo[n.id];
+      if(info && info.updatedAt > rev) return Promise.resolve(false); // nel cloud c'è già una versione più nuova
+      var header = { title:n.title||'', subject:n.subject||'', favorite:!!n.favorite, bg:n.bg||'lined',
+                     createdAt:n.createdAt||rev, updatedAt:rev, deleted:false, thumb:n.thumb||null, pageCount:n.pages.length };
+      return pack(n.pages).then(function(str){
+        var chunks = [];
+        for(var i=0;i<str.length;i+=CHUNK_CHARS) chunks.push(str.slice(i, i+CHUNK_CHARS));
+        if(!chunks.length) chunks.push('');
+        var uid = user.uid, batch = fb.writeBatch(db);
+        chunks.forEach(function(c, i){ batch.set(fb.doc(db,'users',uid,'notes',n.id,'chunks',String(i)), { d:c, rev:rev }); });
+        var prev = info ? info.chunks : 0;
+        for(var j=chunks.length;j<prev;j++) batch.delete(fb.doc(db,'users',uid,'notes',n.id,'chunks',String(j)));
+        header.chunks = chunks.length;
+        batch.set(fb.doc(db,'users',uid,'notes',n.id), header);
+        return batch.commit().then(function(){
+          meta.pushed[n.id] = Math.max(meta.pushed[n.id]||0, rev);
+          remoteInfo[n.id] = { updatedAt:rev, chunks:chunks.length, deleted:false };
+          return true;
+        });
+      });
+    }
+    function pushTomb(id){
+      var ts = meta.tomb[id];
+      var info = remoteInfo[id];
+      if(info && info.updatedAt > ts){ delete meta.tomb[id]; return Promise.resolve(); } // modificata altrove dopo l'eliminazione: la teniamo
+      var uid = user.uid;
+      return fb.getDocs(fb.collection(db,'users',uid,'notes',id,'chunks')).then(function(qs){
+        var batch = fb.writeBatch(db);
+        qs.forEach(function(d){ batch.delete(d.ref); });
+        batch.set(fb.doc(db,'users',uid,'notes',id), { deleted:true, updatedAt:ts, chunks:0, title:'', subject:'', thumb:null });
+        return batch.commit();
+      }).then(function(){
+        delete meta.tomb[id];
+        meta.pushed[id] = ts;
+        remoteInfo[id] = { updatedAt:ts, chunks:0, deleted:true };
+      });
+    }
+    function markDeleted(id){
+      if(meta.pushed[id]===undefined && !(remoteInfo[id] && !remoteInfo[id].deleted)) return; // mai arrivata nel cloud
+      meta.tomb[id] = Date.now();
+      saveMeta();
+      pushSoon(0);
+    }
+
+    /* ---------- compressione ---------- */
+    function bytesToB64(bytes){
+      var s = '', step = 0x8000;
+      for(var i=0;i<bytes.length;i+=step) s += String.fromCharCode.apply(null, bytes.subarray(i, i+step));
+      return btoa(s);
+    }
+    function b64ToBytes(b64){
+      var bin = atob(b64), out = new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+    function pack(pages){
+      var json = JSON.stringify(pages); // copia fatta subito, prima di qualsiasi attesa
+      if(typeof CompressionStream === 'undefined') return Promise.resolve('j:' + json);
+      var stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+      return new Response(stream).arrayBuffer().then(function(buf){ return 'g:' + bytesToB64(new Uint8Array(buf)); })
+        .catch(function(){ return 'j:' + json; });
+    }
+    function unpack(str){
+      try{
+        if(str.slice(0,2)==='j:') return Promise.resolve(JSON.parse(str.slice(2)));
+        if(str.slice(0,2)==='g:'){
+          if(typeof DecompressionStream === 'undefined') return Promise.resolve(null);
+          var stream = new Blob([b64ToBytes(str.slice(2))]).stream().pipeThrough(new DecompressionStream('gzip'));
+          return new Response(stream).text().then(function(t){ var p = JSON.parse(t); return Array.isArray(p) ? p : null; });
+        }
+      }catch(e){ console.warn(e); }
+      return Promise.resolve(null);
+    }
+
+    /* ---------- accesso ---------- */
+    function busy(on){ ['googleBtn','emailLoginBtn','emailSignupBtn'].forEach(function(id){ $(id).disabled = on; }); }
+    function authErr(e){
+      busy(false);
+      if(e && (e.code==='auth/popup-closed-by-user' || e.code==='auth/cancelled-popup-request')) return;
+      lastError = friendlyError(e); renderStatus();
+    }
+    function credentials(){ return { email:$('cloudEmail').value.trim(), pw:$('cloudPassword').value }; }
+    $('googleBtn').addEventListener('click', function(){
+      if(!fb) return;
+      lastError=''; busy(true); renderStatus();
+      fb.signInWithPopup(auth, new fb.GoogleAuthProvider()).then(function(){ busy(false); closeCloud(); }).catch(authErr);
+    });
+    $('emailLoginBtn').addEventListener('click', function(){
+      if(!fb) return; var c = credentials();
+      lastError=''; busy(true); renderStatus();
+      fb.signInWithEmailAndPassword(auth, c.email, c.pw).then(function(){ busy(false); closeCloud(); }).catch(authErr);
+    });
+    $('emailSignupBtn').addEventListener('click', function(){
+      if(!fb) return; var c = credentials();
+      lastError=''; busy(true); renderStatus();
+      fb.createUserWithEmailAndPassword(auth, c.email, c.pw).then(function(){ busy(false); closeCloud(); }).catch(authErr);
+    });
+    $('cloudPassword').addEventListener('keydown', function(e){ if(e.key==='Enter') $('emailLoginBtn').click(); });
+    $('resetPwBtn').addEventListener('click', function(){
+      if(!fb) return; var c = credentials();
+      if(!c.email){ lastError = 'Scrivi prima la tua email nel campo qui sopra.'; renderStatus(); return; }
+      fb.sendPasswordResetEmail(auth, c.email).then(function(){ lastError=''; renderStatus(); showInfo('Ti abbiamo mandato un\u2019email per reimpostare la password (controlla anche lo spam).'); }).catch(authErr);
+    });
+    $('signOutBtn').addEventListener('click', function(){
+      if(!fb) return;
+      showConfirm('Uscire dall\u2019account? Le note restano su questo dispositivo, ma smettono di sincronizzarsi finch\u00e9 non accedi di nuovo.', function(){
+        flushPending(); fb.signOut(auth);
+      });
+    });
+    $('syncNowBtn').addEventListener('click', function(){ lastError=''; flushPending(); pushSoon(0); renderStatus(); });
+    function flushPending(){ if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; persistLocal(); } }
+
+    /* ---------- pannello ---------- */
+    function openCloud(){ lastError = (status==='error') ? lastError : ''; renderStatus(); $('cloudOverlay').classList.add('show'); closeSidebarMobile(); }
+    function closeCloud(){ $('cloudOverlay').classList.remove('show'); }
+    $('cloudEntry').addEventListener('click', openCloud);
+    $('cloudStatus').addEventListener('click', openCloud);
+    $('cloudClose').addEventListener('click', closeCloud);
+    $('cloudOverlay').addEventListener('click', function(e){ if(e.target===$('cloudOverlay')) closeCloud(); });
+    $('cloudOverlay').addEventListener('keydown', function(e){ if(e.key==='Escape') closeCloud(); });
+
+    /* ---------- backup su file ---------- */
+    $('exportAllBtn').addEventListener('click', function(){
+      flushPending();
+      var d = new Date(), pad = function(x){ return (x<10?'0':'')+x; };
+      var name = 'quaderno-backup-' + d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + '.json';
+      var data = JSON.stringify({ app:'quaderno', version:1, exportedAt:Date.now(), notes: state.notes });
+      saveBlobEverywhere(new Blob([data], {type:'application/json'}), name);
+    });
+    $('importAllBtn').addEventListener('click', function(){ $('importFile').value=''; $('importFile').click(); });
+    $('importFile').addEventListener('change', function(){
+      var f = this.files && this.files[0];
+      if(!f) return;
+      f.text().then(function(txt){
+        var data = JSON.parse(txt);
+        var list = Array.isArray(data) ? data : (data && data.notes);
+        if(!Array.isArray(list)) throw new Error('formato');
+        var added = 0, updated = 0;
+        list.forEach(function(n){
+          if(!n || !n.id || !(Array.isArray(n.pages) || Array.isArray(n.strokes))) return;
+          migrateNote(n);
+          if(!n.updatedAt) n.updatedAt = Date.now();
+          var cur = findNote(n.id);
+          if(meta.tomb[n.id]){ delete meta.tomb[n.id]; n.updatedAt = Math.max(n.updatedAt, Date.now()); }
+          if(!cur){ state.notes.push(n); added++; }
+          else if((n.updatedAt||0) > (cur.updatedAt||0)){
+            state.notes[state.notes.indexOf(cur)] = n; updated++;
+            if(activeNote && activeNote.id===n.id){ activeNote = n; delete history[n.id]; }
+          }
+        });
+        saveMeta(); persist();
+        closeCloud();
+        openNote(activeNote ? activeNote.id : state.notes[0].id);
+        showInfo('Importazione completata: ' + added + ' note aggiunte, ' + updated + ' aggiornate' + (added+updated===0 ? ' (erano gi\u00e0 tutte presenti e aggiornate).' : '.'));
+      }).catch(function(){ showInfo('Questo file non sembra un backup di Quaderno.'); });
+    });
+
+    return { start:start, schedulePush:function(){ pushSoon(); }, pushSoon:pushSoon, markDeleted:markDeleted };
+  })();
+
   /* ===================== INIT / RESIZE ===================== */
   var resizeTimer = null;
   window.addEventListener('resize', function(){
@@ -1373,8 +1922,21 @@
     loadState();
     if(state.ui.sidebarCollapsed && !isMobileLayout()){ document.body.classList.add('no-anim','sb-collapsed'); void sidebar.offsetWidth; document.body.classList.remove('no-anim'); }
     setTool(state.ui.tool || 'pen');
-    openNote(state.activeId);
+    try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+    loadNotes().then(function(){
+      finishLoad();
+      openNote(state.activeId);
+      cloud.start();
+    });
   }
+  // salva subito se l'app viene chiusa o messa in secondo piano
+  function flushNow(){
+    if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; if(saveStatus) saveStatus.classList.remove('show'); }
+    persistLocal();
+    if(cloud) cloud.pushSoon(0);
+  }
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') flushNow(); });
+  window.addEventListener('pagehide', flushNow);
   init();
 
   /* ===================== SERVICE WORKER (funziona offline) ===================== */
