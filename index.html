@@ -293,6 +293,24 @@
   #sizePopover.show{ display:flex; align-items:center; gap:8px; }
   #sizePopover span{ color:var(--text-on-navy-dim); font-size:11px; }
   #sizePopover input{ width:110px; accent-color:var(--brass); }
+
+  /* ---------- PANNELLO RIORDINA PAGINE ---------- */
+  #pagesOverlay{ display:none; position:fixed; inset:0; background:rgba(10,12,20,0.55); z-index:95; align-items:center; justify-content:center; padding:16px; }
+  #pagesOverlay.show{ display:flex; }
+  #pagesBox{ background:var(--paper); color:var(--text-ink); border-radius:14px; padding:18px 18px 14px; width:100%; max-width:420px; max-height:calc(100% - 20px); display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.4); }
+  #pagesBox h3{ font-family:var(--font-serif); font-size:19px; margin:0 0 4px; }
+  #pagesBoxHint{ font-size:12.5px; color:var(--text-ink-dim); margin:0 0 12px; }
+  #pagesClose{ float:right; background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:var(--text-ink-dim); padding:2px 8px; border-radius:8px; }
+  #pagesClose:hover{ background:rgba(0,0,0,0.06); }
+  #pagesList{ overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:2px; touch-action:pan-y; }
+  .page-row{ display:flex; align-items:center; gap:10px; background:#fff; border:1px solid rgba(0,0,0,0.1); border-radius:10px; padding:7px 10px 7px 6px; position:relative; }
+  .page-row.dragging{ opacity:0.4; }
+  .page-row-handle{ display:flex; align-items:center; color:var(--text-ink-dim); cursor:grab; padding:6px; touch-action:none; }
+  .page-row-handle svg{ width:18px; height:18px; }
+  .page-row-thumb{ width:34px; height:44px; border-radius:4px; border:1px solid rgba(0,0,0,0.12); object-fit:cover; background:var(--paper); flex:none; }
+  .page-row-label{ font-size:13.5px; font-weight:600; flex:1; }
+  .page-row-current{ font-size:10.5px; color:var(--brass-deep,#8a6a2a); background:rgba(196,152,74,0.18); padding:2px 7px; border-radius:20px; font-weight:700; }
+  #pagesDragGhost{ position:fixed; z-index:120; pointer-events:none; display:none; left:0; top:0; }
 </style>
 </head>
 <body>
@@ -301,6 +319,8 @@
   <symbol id="ic-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="20.5" y2="20.5"/></symbol>
   <symbol id="ic-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
   <symbol id="ic-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></symbol>
+  <symbol id="ic-pages" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3.5" width="14" height="17" rx="1.6"/><line x1="9.5" y1="8" x2="16.5" y2="8"/><line x1="9.5" y1="12" x2="16.5" y2="12"/><line x1="9.5" y1="16" x2="13.5" y2="16"/><path d="M4 7v11a1.6 1.6 0 0 0 1.6 1.6H14"/></symbol>
+  <symbol id="ic-grip" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></symbol>
   <symbol id="ic-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></symbol>
   <symbol id="ic-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></symbol>
   <symbol id="ic-undo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></symbol>
@@ -357,6 +377,7 @@
           <button id="pageNextBtn" class="nav-btn" title="Pagina successiva">›</button>
           <button id="pageAddBtn" class="nav-btn" title="Aggiungi pagina in fondo"><svg><use href="#ic-plus"/></svg></button>
           <button id="pageDelBtn" class="nav-btn danger" title="Elimina la pagina corrente"><svg><use href="#ic-trash"/></svg></button>
+          <button id="pagesOverviewBtn" class="nav-btn" title="Riordina le pagine"><svg><use href="#ic-pages"/></svg></button>
         </div>
         <span id="dateLabel"></span>
         <span id="saveStatus">Salvato</span>
@@ -408,6 +429,16 @@
     </div>
   </main>
 </div>
+
+<div id="pagesOverlay" role="dialog" aria-modal="true" aria-labelledby="pagesTitle">
+  <div id="pagesBox">
+    <button id="pagesClose" type="button" aria-label="Chiudi">&times;</button>
+    <h3 id="pagesTitle">Riordina le pagine</h3>
+    <p id="pagesBoxHint">Tieni premuta la maniglia <svg width="13" height="13" style="vertical-align:-2px"><use href="#ic-grip"/></svg> e trascina una pagina nella posizione che vuoi.</p>
+    <div id="pagesList"></div>
+  </div>
+</div>
+<img id="pagesDragGhost" alt="">
 
 <div id="cloudOverlay" role="dialog" aria-modal="true" aria-labelledby="cloudTitle">
   <div id="cloudBox">
@@ -599,6 +630,7 @@
             state.ui.hlColor = parsed.ui.hlColor || state.ui.hlColor;
             state.ui.lineArrow = !!parsed.ui.lineArrow;
             state.ui.sidebarCollapsed = !!parsed.ui.sidebarCollapsed;
+            state.ui.thumbFixVersion = parsed.ui.thumbFixVersion || 0;
             if(parsed.ui.sizes){ for(var k in state.ui.sizes){ if(parsed.ui.sizes[k]) state.ui.sizes[k] = parsed.ui.sizes[k]; } }
           }
         }
@@ -1280,6 +1312,151 @@
       scheduleSync();
     });
   });
+
+  /* ===================== RIORDINA PAGINE (trascinamento) ===================== */
+  var pagesOverviewBtn = $('pagesOverviewBtn'), pagesOverlay = $('pagesOverlay'), pagesList = $('pagesList'), pagesClose = $('pagesClose'), pagesDragGhost = $('pagesDragGhost');
+  var pageThumbCache = {}; // indice pagina -> data URL, rigenerata ogni apertura del pannello
+  function miniThumbFor(note, pageIdx){
+    var key = pageIdx;
+    if(pageThumbCache[key]) return pageThumbCache[key];
+    try{
+      var h = 56;
+      var url = renderPageToCanvas(note, 40, h, pageIdx).toDataURL('image/jpeg', 0.6);
+      pageThumbCache[key] = url;
+      return url;
+    }catch(e){ return ''; }
+  }
+  function buildPagesList(){
+    pageThumbCache = {};
+    pagesList.innerHTML = '';
+    if(!activeNote) return;
+    activeNote.pages.forEach(function(pg, idx){
+      var row = document.createElement('div');
+      row.className = 'page-row';
+      row.dataset.index = idx;
+      row.innerHTML =
+        '<span class="page-row-handle" title="Trascina per spostare"><svg><use href="#ic-grip"/></svg></span>' +
+        '<img class="page-row-thumb" alt="">' +
+        '<span class="page-row-label">Pagina ' + (idx+1) + '</span>' +
+        (idx===visiblePageIndex ? '<span class="page-row-current">Stai guardando qui</span>' : '');
+      row.querySelector('.page-row-thumb').src = miniThumbFor(activeNote, idx);
+      pagesList.appendChild(row);
+      var handle = row.querySelector('.page-row-handle');
+      handle.addEventListener('pointerdown', function(e){ startPageDrag(e, row); });
+    });
+  }
+  function openPagesOverview(){
+    if(!activeNote || activeNote.pages.length<2){ showInfo('Questa nota ha una sola pagina: non c\u2019\u00e8 ancora nulla da riordinare.'); return; }
+    buildPagesList();
+    pagesOverlay.classList.add('show');
+    closeSidebarMobile();
+  }
+  function closePagesOverview(){ pagesOverlay.classList.remove('show'); }
+  pagesOverviewBtn.addEventListener('click', openPagesOverview);
+  pagesClose.addEventListener('click', closePagesOverview);
+  pagesOverlay.addEventListener('click', function(e){ if(e.target===pagesOverlay) closePagesOverview(); });
+  pagesOverlay.addEventListener('keydown', function(e){ if(e.key==='Escape') closePagesOverview(); });
+
+  var pageDrag = null; // {fromIndex, row, rows, startY, offsetY}
+  function startPageDrag(e, row){
+    e.preventDefault();
+    var rows = Array.prototype.slice.call(pagesList.children);
+    var fromIndex = parseInt(row.dataset.index, 10);
+    var rect = row.getBoundingClientRect();
+    pageDrag = { fromIndex:fromIndex, row:row, rows:rows, order:rows.map(function(r){ return parseInt(r.dataset.index,10); }),
+                 startY:e.clientY, rectH:rect.height, offsetY:e.clientY-rect.top, listRect:pagesList.getBoundingClientRect() };
+    row.classList.add('dragging');
+    pagesDragGhost.src = row.querySelector('.page-row-thumb').src;
+    pagesDragGhost.style.width = rect.width+'px';
+    pagesDragGhost.style.display = 'block';
+    positionGhost(e.clientX, e.clientY, rect);
+    try{ handleSetCapture(e); }catch(err){}
+    document.addEventListener('pointermove', onPageDragMove);
+    document.addEventListener('pointerup', onPageDragEnd);
+    document.addEventListener('pointercancel', onPageDragEnd);
+  }
+  function handleSetCapture(e){ e.target.setPointerCapture(e.pointerId); }
+  function positionGhost(clientX, clientY, rect){
+    pagesDragGhost.style.left = (rect.left) + 'px';
+    pagesDragGhost.style.top = (clientY - pageDrag.offsetY) + 'px';
+  }
+  function onPageDragMove(e){
+    if(!pageDrag) return;
+    var rect = pageDrag.row.getBoundingClientRect();
+    positionGhost(e.clientX, e.clientY, rect);
+    // autoscroll se il dito/penna si avvicina ai bordi dell'elenco
+    var listRect = pagesList.getBoundingClientRect();
+    if(e.clientY < listRect.top+24) pagesList.scrollTop -= 10;
+    else if(e.clientY > listRect.bottom-24) pagesList.scrollTop += 10;
+    // capisce sopra quale altra riga si trova il puntatore e la scambia in anteprima
+    var rows = Array.prototype.slice.call(pagesList.children);
+    var draggedPos = rows.indexOf(pageDrag.row);
+    for(var i=0;i<rows.length;i++){
+      if(rows[i]===pageDrag.row) continue;
+      var r = rows[i].getBoundingClientRect();
+      var mid = r.top + r.height/2;
+      if(e.clientY < mid && i < draggedPos){ pagesList.insertBefore(pageDrag.row, rows[i]); break; }
+      if(e.clientY > mid && i > draggedPos){ pagesList.insertBefore(pageDrag.row, rows[i].nextSibling); break; }
+    }
+  }
+  function onPageDragEnd(){
+    if(!pageDrag) return;
+    document.removeEventListener('pointermove', onPageDragMove);
+    document.removeEventListener('pointerup', onPageDragEnd);
+    document.removeEventListener('pointercancel', onPageDragEnd);
+    pageDrag.row.classList.remove('dragging');
+    pagesDragGhost.style.display = 'none';
+    var newOrder = Array.prototype.slice.call(pagesList.children).map(function(r){ return parseInt(r.dataset.index,10); });
+    var fromIndex = pageDrag.fromIndex;
+    var toIndex = newOrder.indexOf(fromIndex);
+    pageDrag = null;
+    if(toIndex!==-1 && toIndex!==fromIndex) reorderPage(fromIndex, toIndex);
+    else buildPagesList(); // nessuno spostamento reale: ripristina le etichette "Pagina N" corrette
+  }
+  /* Sposta la pagina fromIndex in modo che diventi toIndex, spostando avanti/indietro di uno
+     tutte le pagine comprese fra le due posizioni (proprio come si sposta una pagina di carta
+     dentro un raccoglitore). La cronologia annulla/ripeti di ogni pagina segue la pagina stessa. */
+  function reorderPage(fromIndex, toIndex){
+    if(!activeNote) return;
+    var pages = activeNote.pages;
+    var moved = pages.splice(fromIndex, 1)[0];
+    pages.splice(toIndex, 0, moved);
+    // mappa: indice-prima -> indice-dopo, per portare con sé la cronologia annulla di ogni pagina
+    var oldToNew = {};
+    var n = pages.length;
+    var remaining = [];
+    for(var j=0;j<n;j++){ if(j!==fromIndex) remaining.push(j); }
+    remaining.splice(toIndex, 0, fromIndex);
+    remaining.forEach(function(oldIdx, newIdx){ oldToNew[oldIdx] = newIdx; });
+    remapPageHistory(activeNote.id, oldToNew);
+    if(visiblePageIndex===fromIndex) visiblePageIndex = toIndex;
+    else if(fromIndex < visiblePageIndex && toIndex >= visiblePageIndex) visiblePageIndex--;
+    else if(fromIndex > visiblePageIndex && toIndex <= visiblePageIndex) visiblePageIndex++;
+    activeNote.pageIndex = visiblePageIndex;
+    activeNote.thumb = null;
+    activeNote.updatedAt = Date.now();
+    var targetIndex = visiblePageIndex; // buildPagesLayout ricalcola la pagina visibile dalla
+    buildPagesLayout(false);            // posizione di scorrimento ancora vecchia: la correggiamo subito dopo.
+    visiblePageIndex = activeNote.pageIndex = targetIndex;
+    canvasOuter.scrollTop = pageOffsets[targetIndex]||0;
+    updateUndoRedoButtons();
+    updatePageNav();
+    updateBgButtons();
+    scheduleSync();
+    buildPagesList();
+  }
+  function remapPageHistory(noteId, oldToNew){
+    var prefix = noteId + ':';
+    var moved = {};
+    Object.keys(history).forEach(function(k){
+      if(k.indexOf(prefix)!==0) return;
+      var oldIdx = parseInt(k.slice(prefix.length), 10);
+      if(oldToNew.hasOwnProperty(oldIdx)) moved[oldToNew[oldIdx]] = history[k];
+      delete history[k];
+    });
+    Object.keys(moved).forEach(function(newIdx){ history[pageHistoryKey(noteId, newIdx)] = moved[newIdx]; });
+  }
+
   function updatePageNav(){
     if(!activeNote) return;
     pageNavLabel.textContent = 'Pagina ' + (visiblePageIndex+1) + ' di ' + activeNote.pages.length;
@@ -1993,7 +2170,19 @@
       finishLoad();
       openNote(state.activeId);
       cloud.start();
+      regenerateThumbsOnceIfNeeded();
     });
+  }
+  /* Le miniature create prima della correzione della gomma (v11) avevano macchie nere "congelate"
+     nell'immagine già salvata: non si aggiornano da sole finché non si ridisegna quella pagina.
+     Questo passaggio le rigenera tutte una volta sola, così anche le note vecchie tornano pulite. */
+  var THUMB_FIX_VERSION = 1;
+  function regenerateThumbsOnceIfNeeded(){
+    if((state.ui.thumbFixVersion||0) >= THUMB_FIX_VERSION) return;
+    state.notes.forEach(function(n){ updateThumb(n); });
+    state.ui.thumbFixVersion = THUMB_FIX_VERSION;
+    renderSidebarList();
+    persist();
   }
   // salva subito se l'app viene chiusa o messa in secondo piano
   function flushNow(){
