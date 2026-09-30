@@ -201,7 +201,8 @@
   .nav-btn svg{ width:14px; height:14px; }
   .nav-btn.danger:hover{ color:#e8a2a4; background:rgba(166,61,64,0.12); }
 
-  #canvasOuter{ flex:1; min-height:0; padding:14px 22px 18px; overflow-y:auto; overflow-x:hidden; position:relative; }
+  #canvasOuter{ flex:1; min-height:0; padding:14px 22px 18px; overflow-y:auto; overflow-x:hidden; position:relative; direction:rtl; }
+  #pagesTrack{ direction:ltr; }
   #pagesTrack{ position:relative; width:100%; }
   .page-band{
     position:absolute; left:0; width:100%; border-radius:6px; box-shadow:var(--shadow-page); background:var(--paper);
@@ -282,7 +283,16 @@
     #pageHeader{ padding:12px 12px 8px; }
     #toolbar{ gap:10px; padding:8px 12px; }
     #sizeWrap{ display:none; }
+    #sizeCompactBtn{ display:flex !important; }
   }
+  #sizeCompactBtn{ display:none; flex-direction:column; align-items:center; gap:3px; background:none; border:none; color:var(--text-on-navy-dim); cursor:pointer; padding:6px 9px; border-radius:10px; min-width:44px; position:relative; }
+  #sizeCompactBtn:hover{ color:var(--text-on-navy); background:rgba(255,255,255,0.05); }
+  #sizeCompactBtn span{ font-size:9px; font-weight:600; }
+  #sizeCompactDot{ width:15px; height:15px; border-radius:50%; background:var(--text-on-navy); }
+  #sizePopover{ display:none; position:fixed; background:var(--ink-navy); border:1px solid rgba(255,255,255,0.14); border-radius:12px; padding:12px 14px; box-shadow:0 10px 26px rgba(0,0,0,0.4); white-space:nowrap; z-index:50; }
+  #sizePopover.show{ display:flex; align-items:center; gap:8px; }
+  #sizePopover span{ color:var(--text-on-navy-dim); font-size:11px; }
+  #sizePopover input{ width:110px; accent-color:var(--brass); }
 </style>
 </head>
 <body>
@@ -383,6 +393,14 @@
           <span>Spessore</span>
           <input id="sizeSlider" type="range" min="1" max="10" step="1" value="4">
         </div>
+        <button id="sizeCompactBtn" type="button" title="Spessore" aria-label="Spessore">
+          <span id="sizeCompactDot"></span>
+          <span>Spessore</span>
+          <div id="sizePopover">
+            <span>Spessore</span>
+            <input id="sizeSliderCompact" type="range" min="1" max="10" step="1" value="4">
+          </div>
+        </button>
         <div class="divider"></div>
         <button id="undoBtn" class="icon-btn" title="Annulla"><svg><use href="#ic-undo"/></svg></button>
         <button id="redoBtn" class="icon-btn" title="Ripeti"><svg class="flip"><use href="#ic-undo"/></svg></button>
@@ -481,6 +499,27 @@
   var canvasOuter = $('canvasOuter'), pagesTrack = $('pagesTrack'), inkCanvas = $('inkCanvas'), previewCanvas = $('previewCanvas');
   var inkCtx = inkCanvas.getContext('2d'), previewCtx = previewCanvas.getContext('2d');
   var colorPanel = $('colorPanel'), sizeSlider = $('sizeSlider');
+  var sizeCompactBtn = $('sizeCompactBtn'), sizeSliderCompact = $('sizeSliderCompact'), sizePopover = $('sizePopover'), sizeCompactDot = $('sizeCompactDot');
+  function syncSizeCompactDot(){
+    var v = parseInt(sizeSlider.value, 10) || 4;
+    var px = 4 + v * 1.3; // indicativo, solo per farsi un'idea a colpo d'occhio
+    sizeCompactDot.style.width = sizeCompactDot.style.height = px + 'px';
+  }
+  function positionSizePopover(){
+    var r = sizeCompactBtn.getBoundingClientRect();
+    sizePopover.style.left = Math.max(8, Math.min(r.left + r.width/2 - 80, window.innerWidth - 168)) + 'px';
+    sizePopover.style.top = (r.top - 54) + 'px';
+  }
+  sizeCompactBtn.addEventListener('click', function(e){
+    if(e.target === sizeSliderCompact) return; // il click sul cursore non deve richiudere il popover
+    sizePopover.classList.toggle('show');
+    if(sizePopover.classList.contains('show')){ sizeSliderCompact.value = sizeSlider.value; positionSizePopover(); }
+  });
+  document.addEventListener('click', function(e){ if(!sizeCompactBtn.contains(e.target)) sizePopover.classList.remove('show'); });
+  sizeSliderCompact.addEventListener('input', function(){
+    sizeSlider.value = sizeSliderCompact.value;
+    sizeSlider.dispatchEvent(new Event('input'));
+  });
   var undoBtn = $('undoBtn'), redoBtn = $('redoBtn');
   var bgStyleGroup = $('bgStyleGroup');
   var modalOverlay = $('modalOverlay'), modalMsg = $('modalMsg'), modalCancel = $('modalCancel'), modalConfirm = $('modalConfirm');
@@ -853,11 +892,21 @@
     var tctx = tmp.getContext('2d');
     var pg = note.pages[pageIndex||0] || note.pages[0];
     drawPaperPattern(tctx, w, h, pg ? pg.bg : 'lined');
+    // I tratti si disegnano su un livello separato e trasparente, poi si sovrappongono alla carta:
+    // così la gomma (che "buca" con destination-out) non intacca mai lo sfondo, esattamente come
+    // avviene a schermo, dove la carta è un livello CSS distinto sotto il canvas dell'inchiostro.
+    // Farla scrivere sullo stesso livello della carta creava macchie nere nelle esportazioni e
+    // nelle miniature, perché i punti "cancellati" diventavano trasparenti e i lettori di immagine
+    // (o il JPEG, che non supporta la trasparenza) li mostravano come pieni di nero.
+    var ink = document.createElement('canvas');
+    ink.width = w; ink.height = h;
+    var ictx = ink.getContext('2d');
     var sx = w / canvasCssW, sy = h / PAGE_HEIGHT_CSS;
-    tctx.save();
-    tctx.scale(sx, sy);
-    if(pg) for(var i=0;i<pg.strokes.length;i++) drawFullStroke(tctx, pg.strokes[i]);
-    tctx.restore();
+    ictx.save();
+    ictx.scale(sx, sy);
+    if(pg) for(var i=0;i<pg.strokes.length;i++) drawFullStroke(ictx, pg.strokes[i]);
+    ictx.restore();
+    tctx.drawImage(ink, 0, 0);
     return tmp;
   }
   function updateThumb(note){
@@ -905,6 +954,7 @@
     state.ui.tool = tool;
     document.querySelectorAll('.tool-btn').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tool')===tool); });
     sizeSlider.value = state.ui.sizes[tool] || 4;
+    syncSizeCompactDot();
     previewCanvas.style.opacity = (tool==='highlighter') ? '0.42' : '1';
     arrowToggle.style.display = (tool==='underline') ? 'flex' : 'none';
     arrowToggle.classList.toggle('active', !!state.ui.lineArrow);
@@ -912,7 +962,7 @@
     scheduleSync();
   }
   document.querySelectorAll('.tool-btn').forEach(function(b){ b.addEventListener('click', function(){ setTool(b.getAttribute('data-tool')); }); });
-  sizeSlider.addEventListener('input', function(){ state.ui.sizes[state.ui.tool] = parseInt(sizeSlider.value,10); scheduleSync(); });
+  sizeSlider.addEventListener('input', function(){ state.ui.sizes[state.ui.tool] = parseInt(sizeSlider.value,10); syncSizeCompactDot(); scheduleSync(); });
   arrowToggle.addEventListener('click', function(){
     state.ui.lineArrow = !state.ui.lineArrow;
     arrowToggle.classList.toggle('active', state.ui.lineArrow);
@@ -1006,10 +1056,23 @@
     }
   });
 
+  /* Cronologia annulla/ripeti: una pila SEPARATA per ogni pagina (chiave "idNota:indicePagina"),
+     così "Annulla" tocca sempre e solo la pagina che si sta guardando, mai una pagina diversa
+     su cui si era scritto prima e poi ci si è allontanati scorrendo. */
+  function pageHistoryKey(noteId, pageIdx){ return noteId + ':' + pageIdx; }
+  function getPageHistory(noteId, pageIdx, create){
+    var key = pageHistoryKey(noteId, pageIdx);
+    if(!history[key] && create) history[key] = {past:[], future:[]};
+    return history[key];
+  }
+  function deleteNoteHistory(noteId){
+    var prefix = noteId + ':';
+    Object.keys(history).forEach(function(k){ if(k.indexOf(prefix)===0) delete history[k]; });
+  }
   function commitStroke(pageIdx, stroke){
     activeNote.pages[pageIdx].strokes.push(stroke);
-    var h = history[activeNote.id] || (history[activeNote.id] = {past:[], future:[]});
-    h.past.push({pageIndex:pageIdx, stroke:stroke});
+    var h = getPageHistory(activeNote.id, pageIdx, true);
+    h.past.push({stroke:stroke});
     h.future = [];
     activeNote.updatedAt = Date.now();
     updateUndoRedoButtons();
@@ -1043,19 +1106,19 @@
   window.addEventListener('pointerup', finishStroke);
   window.addEventListener('pointercancel', finishStroke);
 
-  /* ===================== ANNULLA / RIPETI (per nota, non per pagina) ===================== */
+  /* ===================== ANNULLA / RIPETI (per pagina) ===================== */
   function updateUndoRedoButtons(){
-    var h = activeNote ? history[activeNote.id] : null;
+    var h = activeNote ? getPageHistory(activeNote.id, visiblePageIndex, false) : null;
     undoBtn.disabled = !(h && h.past.length>0);
     redoBtn.disabled = !(h && h.future.length>0);
   }
   undoBtn.addEventListener('click', function(){
     if(!activeNote) return;
-    var h = history[activeNote.id];
+    var h = getPageHistory(activeNote.id, visiblePageIndex, false);
     if(!h || !h.past.length) return;
     var entry = h.past.pop();
-    var s = activeNote.pages[entry.pageIndex].strokes.pop();
-    h.future.push({pageIndex:entry.pageIndex, stroke:s});
+    var s = activeNote.pages[visiblePageIndex].strokes.pop();
+    h.future.push({stroke:s});
     redrawAllPages();
     activeNote.updatedAt = Date.now();
     updateUndoRedoButtons();
@@ -1063,11 +1126,11 @@
   });
   redoBtn.addEventListener('click', function(){
     if(!activeNote) return;
-    var h = history[activeNote.id];
+    var h = getPageHistory(activeNote.id, visiblePageIndex, false);
     if(!h || !h.future.length) return;
     var entry = h.future.pop();
-    activeNote.pages[entry.pageIndex].strokes.push(entry.stroke);
-    drawStrokeAtPage(inkCtx, entry.stroke, entry.pageIndex);
+    activeNote.pages[visiblePageIndex].strokes.push(entry.stroke);
+    drawStrokeAtPage(inkCtx, entry.stroke, visiblePageIndex);
     h.past.push(entry);
     activeNote.updatedAt = Date.now();
     updateUndoRedoButtons();
@@ -1095,6 +1158,7 @@
       activeNote.pageIndex = idx;
       updatePageNav();
       updateBgButtons();
+      updateUndoRedoButtons();
       scheduleSync();
     }
   }
@@ -1141,7 +1205,7 @@
     showConfirm('Eliminare questa nota? L\u2019azione non pu\u00f2 essere annullata.', function(){
       var idx = state.notes.findIndex(function(x){ return x.id===id; });
       if(idx===-1) return;
-      delete history[id];
+      deleteNoteHistory(id);
       state.notes.splice(idx,1);
       if(cloud) cloud.markDeleted(id);
       if(state.notes.length===0){
@@ -1169,8 +1233,7 @@
     if(!activeNote) return;
     showConfirm('Svuotare i tratti della pagina '+(visiblePageIndex+1)+'?', function(){
       activeNote.pages[visiblePageIndex].strokes = [];
-      var h = history[activeNote.id];
-      if(h){ h.past = h.past.filter(function(e){ return e.pageIndex!==visiblePageIndex; }); h.future = h.future.filter(function(e){ return e.pageIndex!==visiblePageIndex; }); }
+      delete history[pageHistoryKey(activeNote.id, visiblePageIndex)];
       activeNote.thumb = null;
       activeNote.updatedAt = Date.now();
       redrawAllPages();
@@ -1200,10 +1263,13 @@
     showConfirm('Eliminare la pagina '+(visiblePageIndex+1)+'? Non pu\u00f2 essere ripristinata.', function(){
       var idx = visiblePageIndex;
       activeNote.pages.splice(idx,1);
-      var h = history[activeNote.id];
-      if(h){
-        h.past = h.past.filter(function(e){ return e.pageIndex!==idx; }).map(function(e){ return e.pageIndex>idx ? {pageIndex:e.pageIndex-1, stroke:e.stroke} : e; });
-        h.future = h.future.filter(function(e){ return e.pageIndex!==idx; }).map(function(e){ return e.pageIndex>idx ? {pageIndex:e.pageIndex-1, stroke:e.stroke} : e; });
+      // La cronologia della pagina eliminata sparisce con lei; quelle delle pagine successive
+      // "scalano" di uno per restare agganciate alla pagina giusta.
+      delete history[pageHistoryKey(activeNote.id, idx)];
+      for(var pi=idx+1; pi<activeNote.pages.length+1; pi++){
+        var moved = history[pageHistoryKey(activeNote.id, pi)];
+        delete history[pageHistoryKey(activeNote.id, pi)];
+        if(moved) history[pageHistoryKey(activeNote.id, pi-1)] = moved;
       }
       activeNote.pageIndex = Math.min(idx, activeNote.pages.length-1);
       activeNote.thumb = null;
@@ -1632,7 +1698,7 @@
           if(effects.changed){
             var blanks = state.notes.filter(function(n){ return isBlank(n) && meta.pushed[n.id]===undefined; });
             if(blanks.length && blanks.length < state.notes.length){
-              blanks.forEach(function(b){ state.notes.splice(state.notes.indexOf(b),1); delete history[b.id]; if(activeNote && activeNote.id===b.id) effects.activeRemoved = true; });
+              blanks.forEach(function(b){ state.notes.splice(state.notes.indexOf(b),1); deleteNoteHistory(b.id); if(activeNote && activeNote.id===b.id) effects.activeRemoved = true; });
             }
           }
         }
@@ -1651,7 +1717,7 @@
         if(meta.tomb[id] && meta.tomb[id] <= ru){ delete meta.tomb[id]; }
         if(local && lu <= ru){
           state.notes.splice(state.notes.indexOf(local),1);
-          delete history[id];
+          deleteNoteHistory(id);
           if(activeNote && activeNote.id===id) effects.activeRemoved = true;
           effects.changed = true;
         }
@@ -1673,7 +1739,7 @@
           delete meta.tomb[id];
           meta.pushed[id] = ru;
           effects.changed = true;
-          if(activeNote && activeNote.id===id){ activeNote = n; delete history[id]; effects.activeChanged = true; }
+          if(activeNote && activeNote.id===id){ activeNote = n; deleteNoteHistory(id); effects.activeChanged = true; }
         });
       });
     }
@@ -1898,7 +1964,7 @@
           if(!cur){ state.notes.push(n); added++; }
           else if((n.updatedAt||0) > (cur.updatedAt||0)){
             state.notes[state.notes.indexOf(cur)] = n; updated++;
-            if(activeNote && activeNote.id===n.id){ activeNote = n; delete history[n.id]; }
+            if(activeNote && activeNote.id===n.id){ activeNote = n; deleteNoteHistory(n.id); }
           }
         });
         saveMeta(); persist();
