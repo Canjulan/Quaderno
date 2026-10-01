@@ -516,7 +516,9 @@
   var activeFilter = null; // null = tutte le cartelle, '__fav__' = solo preferiti
   var openFolders = {};    // nome cartella -> bool (aperta/chiusa), solo in memoria
   var canvasCssW = 1;
-  var dpr = window.devicePixelRatio || 1;
+  var MAX_DPR = 2; // oltre questo valore, la "tela" di una nota lunga diventa enorme e il disegno rallenta
+                    // sensibilmente su schermi molto ad alta densità; la perdita di nitidezza è impercettibile.
+  var dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
   var pageOffsets = [];     // offset in CSS px dell'inizio di ciascuna pagina dentro il canvas alto
   var trackHeightCss = PAGE_HEIGHT_CSS;
   var visiblePageIndex = 0;
@@ -717,7 +719,7 @@
     var prevScrollTop = preserveScroll ? canvasOuter.scrollTop : null;
     computeOffsets();
     canvasCssW = Math.max(1, canvasOuter.clientWidth);
-    dpr = window.devicePixelRatio || 1;
+    dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     pagesTrack.style.height = trackHeightCss + 'px';
     // ricrea le "bande" di sfondo (rimuove tutto tranne le due canvas, che restano gli stessi nodi)
     Array.prototype.slice.call(pagesTrack.querySelectorAll('.page-band')).forEach(function(el){ el.remove(); });
@@ -1020,7 +1022,6 @@
 
   /* ===================== INPUT PENNA/MOUSE — SCROLL CON IL DITO ===================== */
   var drawing = false;
-  var touchScroll = null; // {id,y,top} quando un dito sta facendo scorrere la pagina
   var activeStroke = null;
   var lineStart = null, lineEnd = null;
   var lastPenTs = 0;
@@ -1030,15 +1031,9 @@
 
   previewCanvas.addEventListener('pointerdown', function(e){
     if(!activeNote) return;
-    if(e.pointerType==='touch'){
-      // Il dito non disegna: fa scorrere la pagina "a mano", perché touch-action:none blocca
-      // lo scorrimento nativo del browser (serve bloccato per impedire che la penna scorra
-      // la pagina mentre scrive: i due tipi di tocco non si possono distinguere via CSS).
-      if(touchScroll) return; // un solo dito alla volta
-      touchScroll = { id:e.pointerId, y:e.clientY, top:canvasOuter.scrollTop };
-      try{ previewCanvas.setPointerCapture(e.pointerId); }catch(err){}
-      return;
-    }
+    if(e.pointerType==='touch') return; // il tocco (anche il palmo appoggiato mentre si scrive con la penna) non deve
+                                         // disegnare né far scorrere la pagina: si scorre con rotellina/trackpad,
+                                         // con i pulsanti ‹ › oppure con il dito sulla barra laterale.
     if(typeof e.button==='number' && e.button>0) return;
     e.preventDefault();
     drawing = true;
@@ -1063,11 +1058,6 @@
   });
 
   previewCanvas.addEventListener('pointermove', function(e){
-    if(touchScroll && e.pointerId===touchScroll.id){
-      canvasOuter.scrollTop = touchScroll.top - (e.clientY - touchScroll.y);
-      e.preventDefault();
-      return;
-    }
     if(!drawing || !activeNote) return;
     if(e.pointerType==='touch') return;
     e.preventDefault();
@@ -1149,11 +1139,6 @@
       activeStroke = null;
     }
   }
-  function endTouchScroll(e){
-    if(touchScroll && e.pointerId===touchScroll.id) touchScroll = null;
-  }
-  window.addEventListener('pointerup', endTouchScroll);
-  window.addEventListener('pointercancel', endTouchScroll);
   window.addEventListener('pointerup', finishStroke);
   window.addEventListener('pointercancel', finishStroke);
 
