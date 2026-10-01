@@ -221,7 +221,7 @@
     color:var(--text-ink-dim); background:rgba(255,255,255,0.65); padding:2px 8px; border-radius:9px; z-index:2; pointer-events:none;
   }
   #inkCanvas{ position:absolute; left:0; top:0; width:100%; mix-blend-mode:multiply; pointer-events:none; }
-  #previewCanvas{ position:absolute; left:0; top:0; width:100%; mix-blend-mode:multiply; touch-action:pan-y; }
+  #previewCanvas{ position:absolute; left:0; top:0; width:100%; mix-blend-mode:multiply; touch-action:none; }
 
   /* ---------- TOOLBAR ---------- */
   #toolbarDock{ display:flex; justify-content:center; padding:0 14px 16px; }
@@ -1020,6 +1020,7 @@
 
   /* ===================== INPUT PENNA/MOUSE — SCROLL CON IL DITO ===================== */
   var drawing = false;
+  var touchScroll = null; // {id,y,top} quando un dito sta facendo scorrere la pagina
   var activeStroke = null;
   var lineStart = null, lineEnd = null;
   var lastPenTs = 0;
@@ -1029,7 +1030,15 @@
 
   previewCanvas.addEventListener('pointerdown', function(e){
     if(!activeNote) return;
-    if(e.pointerType==='touch') return; // il tocco (anche il palmo appoggiato) non deve disegnare n\u00e9 far scorrere la pagina: si scorre con rotellina/trackpad o con i pulsanti \u2039 \u203a
+    if(e.pointerType==='touch'){
+      // Il dito non disegna: fa scorrere la pagina "a mano", perché touch-action:none blocca
+      // lo scorrimento nativo del browser (serve bloccato per impedire che la penna scorra
+      // la pagina mentre scrive: i due tipi di tocco non si possono distinguere via CSS).
+      if(touchScroll) return; // un solo dito alla volta
+      touchScroll = { id:e.pointerId, y:e.clientY, top:canvasOuter.scrollTop };
+      try{ previewCanvas.setPointerCapture(e.pointerId); }catch(err){}
+      return;
+    }
     if(typeof e.button==='number' && e.button>0) return;
     e.preventDefault();
     drawing = true;
@@ -1054,6 +1063,11 @@
   });
 
   previewCanvas.addEventListener('pointermove', function(e){
+    if(touchScroll && e.pointerId===touchScroll.id){
+      canvasOuter.scrollTop = touchScroll.top - (e.clientY - touchScroll.y);
+      e.preventDefault();
+      return;
+    }
     if(!drawing || !activeNote) return;
     if(e.pointerType==='touch') return;
     e.preventDefault();
@@ -1135,6 +1149,11 @@
       activeStroke = null;
     }
   }
+  function endTouchScroll(e){
+    if(touchScroll && e.pointerId===touchScroll.id) touchScroll = null;
+  }
+  window.addEventListener('pointerup', endTouchScroll);
+  window.addEventListener('pointercancel', endTouchScroll);
   window.addEventListener('pointerup', finishStroke);
   window.addEventListener('pointercancel', finishStroke);
 
