@@ -2176,10 +2176,13 @@
   /* Le miniature create prima della correzione della gomma (v11) avevano macchie nere "congelate"
      nell'immagine già salvata: non si aggiornano da sole finché non si ridisegna quella pagina.
      Questo passaggio le rigenera tutte una volta sola, così anche le note vecchie tornano pulite. */
-  var THUMB_FIX_VERSION = 1;
+  var THUMB_FIX_VERSION = 2;
   function regenerateThumbsOnceIfNeeded(){
     if((state.ui.thumbFixVersion||0) >= THUMB_FIX_VERSION) return;
-    state.notes.forEach(function(n){ updateThumb(n); });
+    state.notes.forEach(function(n){
+      updateThumb(n);
+      n.updatedAt = Date.now(); // la miniatura corretta deve arrivare anche al cloud, non restare solo su questo dispositivo
+    });
     state.ui.thumbFixVersion = THUMB_FIX_VERSION;
     renderSidebarList();
     persist();
