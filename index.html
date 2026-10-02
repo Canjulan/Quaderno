@@ -519,8 +519,17 @@
   var MAX_DPR = 2; // oltre questo valore, la "tela" di una nota lunga diventa enorme e il disegno rallenta
                     // sensibilmente su schermi molto ad alta densità; la perdita di nitidezza è impercettibile.
   var dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-  var pageOffsets = [];     // offset in CSS px dell'inizio di ciascuna pagina dentro il canvas alto
+  var pageOffsets = [];     // offset in CSS px dell'inizio di ciascuna pagina dentro la nota intera
   var trackHeightCss = PAGE_HEIGHT_CSS;
+  /* "Finestra scorrevole": il canvas dell'inchiostro non è più alto quanto TUTTA la nota, ma solo
+     quanto WINDOW_PAGES pagine vicine a quella che si sta guardando. Questo evita che una nota di
+     20-30 pagine costringa il browser a gestire un'unica immagine enorme a ogni singolo tratto.
+     Il resto della nota (la "pista" scorrevole, gli sfondi a righe) resta a piena altezza come prima:
+     solo il disegno vero e proprio viene spostato e ridisegnato quando ci si allontana troppo dalla
+     finestra attuale. */
+  var WINDOW_PAGES = 6;
+  var windowStart = 0;
+  var canvasOffsetCss = 0;  // = pageOffsets[windowStart]: quanto il canvas è "sceso" rispetto alla cima della nota
   var visiblePageIndex = 0;
   var drawingPageIndex = 0; // pagina su cui si sta disegnando il tratto corrente
 
@@ -714,6 +723,42 @@
     }
     return activeNote.pages.length-1;
   }
+  function computeWindowStart(centerIdx, totalPages){
+    var half = Math.floor(WINDOW_PAGES/2);
+    var start = centerIdx - half;
+    start = Math.max(0, Math.min(start, Math.max(0, totalPages - WINDOW_PAGES)));
+    return start;
+  }
+  // Ridimensiona e riposiziona il canvas sulla finestra di pagine [newStart .. newStart+WINDOW_PAGES-1],
+  // poi ridisegna solo quelle. Va chiamata ogni volta che la finestra deve spostarsi.
+  function applyCanvasWindow(newStart){
+    if(!activeNote || !activeNote.pages.length) return;
+    windowStart = Math.max(0, Math.min(newStart, activeNote.pages.length-1));
+    canvasOffsetCss = pageOffsets[windowStart] || 0;
+    var endIdx = Math.min(activeNote.pages.length-1, windowStart + WINDOW_PAGES - 1);
+    var windowHeightCss = Math.max(PAGE_HEIGHT_CSS, ((pageOffsets[endIdx]||0) + PAGE_HEIGHT_CSS) - canvasOffsetCss);
+    [inkCanvas, previewCanvas].forEach(function(c){
+      c.style.top = canvasOffsetCss + 'px';
+      c.width = Math.max(1, Math.round(canvasCssW*dpr));
+      c.height = Math.max(1, Math.round(windowHeightCss*dpr));
+      c.style.width = canvasCssW+'px';
+      c.style.height = windowHeightCss+'px';
+    });
+    inkCtx.setTransform(dpr,0,0,dpr,0,0);
+    previewCtx.setTransform(dpr,0,0,dpr,0,0);
+    redrawAllPages();
+  }
+  // Se la pagina visibile si avvicina troppo al bordo della finestra attuale, la ricentra.
+  // Non si sposta mai mentre si sta effettivamente disegnando (si aspetta che la penna si sollevi),
+  // per non spostare/ridisegnare il canvas sotto un tratto in corso.
+  function maybeShiftWindow(){
+    if(!activeNote || drawing) return;
+    var margin = 1;
+    var windowEnd = Math.min(activeNote.pages.length-1, windowStart + WINDOW_PAGES - 1);
+    if(visiblePageIndex < windowStart + margin || visiblePageIndex > windowEnd - margin){
+      applyCanvasWindow(computeWindowStart(visiblePageIndex, activeNote.pages.length));
+    }
+  }
   function buildPagesLayout(preserveScroll){
     if(!activeNote) return;
     var prevScrollTop = preserveScroll ? canvasOuter.scrollTop : null;
@@ -735,15 +780,7 @@
       band.appendChild(num);
       pagesTrack.insertBefore(band, inkCanvas);
     });
-    [inkCanvas, previewCanvas].forEach(function(c){
-      c.width = Math.max(1, Math.round(canvasCssW*dpr));
-      c.height = Math.max(1, Math.round(trackHeightCss*dpr));
-      c.style.width = canvasCssW+'px';
-      c.style.height = trackHeightCss+'px';
-    });
-    inkCtx.setTransform(dpr,0,0,dpr,0,0);
-    previewCtx.setTransform(dpr,0,0,dpr,0,0);
-    redrawAllPages();
+    applyCanvasWindow(computeWindowStart(visiblePageIndex, activeNote.pages.length));
     if(preserveScroll && prevScrollTop!==null) canvasOuter.scrollTop = prevScrollTop;
     updateVisiblePageIndex();
     updatePageNav();
@@ -871,12 +908,14 @@
   // Le funzioni sopra disegnano in coordinate LOCALI alla pagina: queste due li applicano
   // all'offset verticale giusto dentro il canvas alto e continuo.
   function drawStrokeAtPage(ctx, stroke, pageIdx){
-    ctx.save(); ctx.translate(0, pageOffsets[pageIdx]||0); drawFullStroke(ctx, stroke); ctx.restore();
+    ctx.save(); ctx.translate(0, (pageOffsets[pageIdx]||0) - canvasOffsetCss); drawFullStroke(ctx, stroke); ctx.restore();
   }
   function liveDrawAtPage(ctx, stroke, pageIdx, forceOpaque){
-    ctx.save(); ctx.translate(0, pageOffsets[pageIdx]||0); appendPointAndDraw(ctx, stroke, forceOpaque); ctx.restore();
+    ctx.save(); ctx.translate(0, (pageOffsets[pageIdx]||0) - canvasOffsetCss); appendPointAndDraw(ctx, stroke, forceOpaque); ctx.restore();
   }
 
+  // Nonostante il nome (rimasto per toccare meno codice possibile), ridisegna solo le pagine
+  // attualmente nella finestra [windowStart .. windowStart+WINDOW_PAGES-1], non tutta la nota.
   function redrawAllPages(){
     inkCtx.save();
     inkCtx.setTransform(1,0,0,1,0,0);
@@ -884,9 +923,11 @@
     inkCtx.restore();
     inkCtx.setTransform(dpr,0,0,dpr,0,0);
     if(!activeNote) return;
-    activeNote.pages.forEach(function(p, i){
+    var endIdx = Math.min(activeNote.pages.length-1, windowStart + WINDOW_PAGES - 1);
+    for(var i=windowStart; i<=endIdx; i++){
+      var p = activeNote.pages[i];
       for(var j=0;j<p.strokes.length;j++) drawStrokeAtPage(inkCtx, p.strokes[j], i);
-    });
+    }
   }
   function clearPreview(){
     previewCtx.save();
@@ -1026,7 +1067,9 @@
   var lineStart = null, lineEnd = null;
   var lastPenTs = 0;
 
-  function getPos(e){ var rect = previewCanvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
+  // Il canvas ora comincia a "canvasOffsetCss" invece che in cima alla nota: si aggiunge quell'offset
+  // per continuare a ragionare in coordinate assolute (uguali per tutta la nota), come prima.
+  function getPos(e){ var rect = previewCanvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: (e.clientY - rect.top) + canvasOffsetCss }; }
   function widthForLine(setting){ return 1.4 + setting*0.55; }
 
   previewCanvas.addEventListener('pointerdown', function(e){
@@ -1138,6 +1181,7 @@
       commitStroke(drawingPageIndex, activeStroke);
       activeStroke = null;
     }
+    maybeShiftWindow(); // nel caso lo scorrimento fosse cambiato mentre si disegnava (bloccato apposta finché drawing=true)
   }
   window.addEventListener('pointerup', finishStroke);
   window.addEventListener('pointercancel', finishStroke);
@@ -1197,6 +1241,7 @@
       updateUndoRedoButtons();
       scheduleSync();
     }
+    maybeShiftWindow();
   }
   function maybeAutoAddPage(){
     if(!activeNote) return;
@@ -1310,6 +1355,7 @@
       activeNote.pageIndex = Math.min(idx, activeNote.pages.length-1);
       activeNote.thumb = null;
       activeNote.updatedAt = Date.now();
+      visiblePageIndex = activeNote.pageIndex; // cos\u00ec la finestra viene centrata gi\u00e0 sulla pagina giusta
       buildPagesLayout(false);
       canvasOuter.scrollTop = pageOffsets[activeNote.pageIndex]||0;
       updateUndoRedoButtons();
@@ -1442,6 +1488,7 @@
     var targetIndex = visiblePageIndex; // buildPagesLayout ricalcola la pagina visibile dalla
     buildPagesLayout(false);            // posizione di scorrimento ancora vecchia: la correggiamo subito dopo.
     visiblePageIndex = activeNote.pageIndex = targetIndex;
+    applyCanvasWindow(computeWindowStart(targetIndex, activeNote.pages.length)); // per sicurezza, nel caso la finestra si fosse spostata in base alla posizione vecchia
     canvasOuter.scrollTop = pageOffsets[targetIndex]||0;
     updateUndoRedoButtons();
     updatePageNav();
