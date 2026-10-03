@@ -880,11 +880,24 @@
       return;
     }
     if(stroke.type==='highlighter'){
+      // La tela temporanea serve solo per poter applicare la trasparenza all'evidenziatore senza che
+      // si veda la sovrapposizione dove il tratto si incrocia con se stesso. In passato era grande
+      // quanto l'INTERO canvas dell'inchiostro: durante un ridisegno completo di una pagina con molti
+      // evidenziatori (come questa tabella) questo creava decine di tele enormi una via l'altra, un
+      // carico sulla memoria grafica del browser che poteva far fallire silenziosamente il disegno di
+      // alcuni tratti successivi. Ora la tela è grande solo quanto il rettangolo del singolo tratto.
+      var pts = stroke.points;
+      if(!pts || !pts.length) return;
+      var pad = 24;
+      var minX=pts[0].x, maxX=pts[0].x, minY=pts[0].y, maxY=pts[0].y;
+      for(var i=1;i<pts.length;i++){ var p=pts[i]; if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
+      minX-=pad; minY-=pad; maxX+=pad; maxY+=pad;
+      var m = destCtx.getTransform(); // qui si usano solo traslazioni + scala uniforme, mai rotazioni
       var off = document.createElement('canvas');
-      off.width = destCtx.canvas.width; off.height = destCtx.canvas.height;
+      off.width = Math.max(1, Math.ceil((maxX-minX)*m.a));
+      off.height = Math.max(1, Math.ceil((maxY-minY)*m.d));
       var octx = off.getContext('2d');
-      var m = destCtx.getTransform();
-      octx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
+      octx.setTransform(m.a, 0, 0, m.d, -minX*m.a, -minY*m.d);
       octx.save();
       octx.lineCap='round'; octx.lineJoin='round';
       octx.globalCompositeOperation='source-over';
@@ -896,7 +909,7 @@
       destCtx.setTransform(1,0,0,1,0,0);
       destCtx.globalAlpha = (typeof stroke.opacity==='number') ? stroke.opacity : 0.42;
       destCtx.globalCompositeOperation = 'source-over';
-      destCtx.drawImage(off,0,0);
+      destCtx.drawImage(off, minX*m.a + m.e, minY*m.d + m.f);
       destCtx.restore();
       return;
     }
@@ -928,6 +941,26 @@
       var p = activeNote.pages[i];
       for(var j=0;j<p.strokes.length;j++) drawStrokeAtPage(inkCtx, p.strokes[j], i);
     }
+  }
+  // Ridisegna SOLO la pagina indicata, pulendo e ridisegnando unicamente la sua fascia verticale
+  // di canvas, invece di tutta la finestra (che può contenere altre pagine altrettanto piene).
+  // Per note molto dense, ridisegnare migliaia di tratti di pagine NON toccate ogni volta che si
+  // annulla un singolo tratto non è solo uno spreco: con decine di evidenziatori e migliaia di
+  // tratti nella stessa finestra, il carico combinato poteva far fallire silenziosamente il disegno
+  // di alcuni tratti durante il ridisegno completo, facendoli sembrare "scomparsi" pur restando
+  // intatti nei dati salvati. Operazioni come Annulla, che toccano una sola pagina alla volta,
+  // ora si limitano a quella pagina.
+  function redrawSinglePage(pageIdx){
+    if(!activeNote) return;
+    var p = activeNote.pages[pageIdx];
+    if(!p) return;
+    var yTop = (pageOffsets[pageIdx]||0) - canvasOffsetCss;
+    inkCtx.save();
+    inkCtx.setTransform(dpr,0,0,dpr,0,0);
+    inkCtx.clearRect(0, yTop, canvasCssW, PAGE_HEIGHT_CSS);
+    inkCtx.restore();
+    inkCtx.setTransform(dpr,0,0,dpr,0,0);
+    for(var j=0;j<p.strokes.length;j++) drawStrokeAtPage(inkCtx, p.strokes[j], pageIdx);
   }
   function clearPreview(){
     previewCtx.save();
@@ -1199,7 +1232,7 @@
     var entry = h.past.pop();
     var s = activeNote.pages[visiblePageIndex].strokes.pop();
     h.future.push({stroke:s});
-    redrawAllPages();
+    redrawSinglePage(visiblePageIndex);
     activeNote.updatedAt = Date.now();
     updateUndoRedoButtons();
     scheduleSync();
@@ -1317,7 +1350,7 @@
       delete history[pageHistoryKey(activeNote.id, visiblePageIndex)];
       activeNote.thumb = null;
       activeNote.updatedAt = Date.now();
-      redrawAllPages();
+      redrawSinglePage(visiblePageIndex);
       updateUndoRedoButtons();
       updateDateLabel();
       scheduleSync();
