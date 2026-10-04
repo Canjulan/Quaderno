@@ -527,7 +527,10 @@
      Il resto della nota (la "pista" scorrevole, gli sfondi a righe) resta a piena altezza come prima:
      solo il disegno vero e proprio viene spostato e ridisegnato quando ci si allontana troppo dalla
      finestra attuale. */
-  var WINDOW_PAGES = 6;
+  var WINDOW_PAGES = 3; // ridotto da 6: meno pagine ridisegnate insieme nei ridisegni "pesanti"
+                         // (ridimensionamento, apertura nota, aggiunta/riordino pagine) rimasti,
+                         // per ridurre il rischio che un numero enorme di tratti tutti insieme
+                         // causi un difetto di disegno come quello già trovato e corretto per Annulla.
   var windowStart = 0;
   var canvasOffsetCss = 0;  // = pageOffsets[windowStart]: quanto il canvas è "sceso" rispetto alla cima della nota
   var visiblePageIndex = 0;
