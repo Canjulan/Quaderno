@@ -923,11 +923,18 @@
   }
   // Le funzioni sopra disegnano in coordinate LOCALI alla pagina: queste due li applicano
   // all'offset verticale giusto dentro il canvas alto e continuo.
+  /* Ogni tratto agisce SOLO dentro la propria pagina (come su un foglio di carta vero).
+     Prima un tratto che partiva su una pagina e finiva oltre il suo bordo (tipicamente una gomma
+     trascinata verso l'alto dall'inizio della pagina successiva) veniva salvato nella pagina dove
+     era iniziato ma cancellava anche il contenuto della pagina vicina: a ogni ridisegno completo
+     veniva riapplicato DOPO tutto il resto di quella pagina, mangiando anche ciò che era stato
+     scritto più tardi, e si "spostava" insieme alla pagina quando la si riordinava. */
+  function clipToPage(ctx){ ctx.beginPath(); ctx.rect(0, 0, canvasCssW, PAGE_HEIGHT_CSS); ctx.clip(); }
   function drawStrokeAtPage(ctx, stroke, pageIdx){
-    ctx.save(); ctx.translate(0, (pageOffsets[pageIdx]||0) - canvasOffsetCss); drawFullStroke(ctx, stroke); ctx.restore();
+    ctx.save(); ctx.translate(0, (pageOffsets[pageIdx]||0) - canvasOffsetCss); clipToPage(ctx); drawFullStroke(ctx, stroke); ctx.restore();
   }
   function liveDrawAtPage(ctx, stroke, pageIdx, forceOpaque){
-    ctx.save(); ctx.translate(0, (pageOffsets[pageIdx]||0) - canvasOffsetCss); appendPointAndDraw(ctx, stroke, forceOpaque); ctx.restore();
+    ctx.save(); ctx.translate(0, (pageOffsets[pageIdx]||0) - canvasOffsetCss); clipToPage(ctx); appendPointAndDraw(ctx, stroke, forceOpaque); ctx.restore();
   }
 
   // Nonostante il nome (rimasto per toccare meno codice possibile), ridisegna solo le pagine
