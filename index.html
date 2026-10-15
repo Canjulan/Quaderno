@@ -254,7 +254,21 @@
   .swatch.active{ border-color:var(--brass-soft); box-shadow:0 0 0 2px var(--ink-navy), 0 0 0 4px var(--brass); }
   .swatch-custom{ display:inline-block; background:conic-gradient(red,orange,yellow,green,blue,violet,red); overflow:hidden; }
   .swatch-custom.active{ border-color:var(--brass-soft); }
-  .swatch-custom input{ position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .swatch-pencil{ display:inline-flex; align-items:center; justify-content:center; }
+  .swatch-pencil svg{ width:14px; height:14px; fill:none; stroke:#fff; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
+  #colorPop{ display:none; position:fixed; z-index:60; width:330px; max-width:calc(100vw - 16px); background:var(--ink-navy); border:1px solid rgba(255,255,255,0.14); border-radius:14px; padding:12px; box-shadow:0 12px 30px rgba(0,0,0,0.45); }
+  #colorSearch{ width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:var(--text-on-navy); font:inherit; font-size:13px; }
+  #colorFams{ display:flex; flex-wrap:wrap; gap:5px; margin:10px 0; }
+  .cp-fam{ display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:12px; border:1px solid rgba(255,255,255,0.16); background:none; color:var(--text-on-navy-dim); font:inherit; font-size:11px; cursor:pointer; }
+  .cp-fam.on{ background:var(--brass); border-color:var(--brass); color:var(--ink-navy); font-weight:600; }
+  .cp-fdot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  #colorGrid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; max-height:220px; overflow-y:auto; padding:2px; }
+  .cp-cell{ aspect-ratio:1; border-radius:50%; border:2px solid transparent; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.2); cursor:pointer; padding:0; }
+  .cp-cell:hover{ transform:scale(1.12); }
+  .cp-cell.on{ border-color:var(--brass-soft); box-shadow:0 0 0 2px var(--ink-navy), 0 0 0 4px var(--brass); }
+  .cp-empty{ grid-column:1/-1; font-size:12px; color:var(--text-on-navy-dim); padding:6px 2px; }
+  #colorMore{ display:block; margin-top:10px; font-size:11.5px; color:var(--text-on-navy-dim); cursor:pointer; }
+  #colorMore input{ vertical-align:middle; margin-left:4px; width:34px; height:22px; padding:0; border:none; background:none; cursor:pointer; }
 
   #sizeWrap{ display:flex; align-items:center; gap:8px; color:var(--text-on-navy-dim); font-size:11px; }
   #sizeSlider{ width:88px; accent-color:var(--brass); }
@@ -533,7 +547,7 @@
   var state = {
     notes: [],
     activeId: null,
-    ui: { tool:'pen', penColor: PEN_COLORS[0], hlColor: HL_COLORS[0], lineArrow:false, shapeKind:'ellipse', customColors:[], sizes:{pen:4, highlighter:5, eraser:5, underline:3, shape:3} }
+    ui: { tool:'pen', penColor: PEN_COLORS[0], hlColor: HL_COLORS[0], lineArrow:false, shapeKind:'ellipse', sizes:{pen:4, highlighter:5, eraser:5, underline:3, shape:3} }
   };
   var history = {};       // per nota: { past:[{pageIndex,stroke}], future:[...] } — annulla/ripeti
   var activeNote = null;
@@ -653,6 +667,16 @@
   function idbGet(key){ return idbOpen().then(function(db){ return new Promise(function(res, rej){ var r = db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).get(key); r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }); }
   function idbSet(key, val){ return idbOpen().then(function(db){ return new Promise(function(res, rej){ var tx = db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(val, key); tx.oncomplete=function(){ res(); }; tx.onerror=function(){ rej(tx.error); }; tx.onabort=function(){ rej(tx.error); }; }); }); }
 
+  /* Ogni nota è una voce a sé ('n:<id>') + un elenco ('idx'): salvando si riscrive solo la nota cambiata,
+     non l'intero quaderno (prima ~90-250 ms di blocco a ogni salvataggio). Il vecchio formato
+     (un'unica voce 'notes') viene letto e convertito da solo al primo salvataggio. */
+  var savedRev = {}, savedIds = {};
+  function idbWriteMany(puts, dels){ return idbOpen().then(function(db){ return new Promise(function(res, rej){
+    var tx = db.transaction(IDB_STORE,'readwrite'), st = tx.objectStore(IDB_STORE);
+    puts.forEach(function(p){ st.put(p[1], p[0]); });
+    dels.forEach(function(k){ st.delete(k); });
+    tx.oncomplete=function(){ res(); }; tx.onerror=function(){ rej(tx.error); }; tx.onabort=function(){ rej(tx.error); };
+  }); }); }
   function loadState(){
     try{
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -666,8 +690,8 @@
             state.ui.penColor = parsed.ui.penColor || state.ui.penColor;
             state.ui.hlColor = parsed.ui.hlColor || state.ui.hlColor;
             state.ui.lineArrow = !!parsed.ui.lineArrow;
+            if(parsed.ui.pos && typeof parsed.ui.pos==='object') state.ui.pos = parsed.ui.pos;
             if(parsed.ui.shapeKind) state.ui.shapeKind = parsed.ui.shapeKind;
-            if(Array.isArray(parsed.ui.customColors)) state.ui.customColors = parsed.ui.customColors.filter(function(c){ return /^#[0-9a-fA-F]{6}$/.test(c); }).slice(0,6);
             state.ui.sidebarCollapsed = !!parsed.ui.sidebarCollapsed;
             state.ui.thumbFixVersion = parsed.ui.thumbFixVersion || 0;
             if(parsed.ui.sizes){ for(var k in state.ui.sizes){ if(parsed.ui.sizes[k]) state.ui.sizes[k] = parsed.ui.sizes[k]; } }
@@ -677,11 +701,19 @@
     }catch(e){ console.warn('Quaderno: impossibile leggere il salvataggio locale', e); }
   }
   function loadNotes(){
-    return idbGet('notes').then(function(notes){
+    return idbGet('idx').then(function(ids){
+      if(!Array.isArray(ids)) return idbGet('notes');
+      return Promise.all(ids.map(function(id){ return idbGet('n:'+id); })).then(function(list){
+        list = list.filter(function(n){ return n && n.id; });
+        list.forEach(function(n){ savedRev[n.id] = n.updatedAt; savedIds[n.id] = 1; });
+        return { __new: list };
+      });
+    }).then(function(notes){
+      if(notes && notes.__new){ state.notes = notes.__new; return; }
       if(Array.isArray(notes)){ state.notes = notes; return; }
       if(legacyNotes){
         state.notes = legacyNotes;
-        return idbSet('notes', state.notes).then(function(){ writeUiPrefs(); }); // spostamento riuscito: tolgo le note dal localStorage
+        return idbWriteMany([['notes', state.notes]], []).then(function(){ writeUiPrefs(); }); // spostamento riuscito: tolgo le note dal localStorage
       }
     }).catch(function(e){
       console.warn('Quaderno: IndexedDB non disponibile, uso il localStorage', e);
@@ -707,6 +739,10 @@
        soltanto le preferenze, minuscole, e non toccano le note;
      - la riscrittura delle note aspetta che la penna stia ferma per un po' e non parte mai durante un tratto;
      - la miniatura si ricalcola solo se è cambiata la pagina 1 (o la struttura delle pagine). */
+  var lastActivity = 0, pendingSince = 0;
+  function markActivity(){ lastActivity = Date.now(); }
+  ['pointermove','pointerdown','wheel','keydown','touchmove'].forEach(function(ev){ window.addEventListener(ev, markActivity, {passive:true, capture:true}); });
+  function userBusy(ms){ return drawing || (Date.now() - lastActivity) < ms; }
   var saveTimer = null, uiTimer = null, thumbPending = false;
   var SAVE_DELAY = 1600;
   function scheduleSync(opts){
@@ -717,13 +753,17 @@
       return;
     }
     if(!opts.noThumb) thumbPending = true;
+    if(!pendingSince) pendingSince = Date.now();
     if(saveStatus){ saveStatus.textContent='Salvataggio…'; saveStatus.classList.add('show'); }
     if(saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(runSave, SAVE_DELAY);
   }
   function runSave(){
     saveTimer = null;
-    if(drawing){ saveTimer = setTimeout(runSave, 700); return; } // mai nel mezzo di un tratto
+    // Non si salva finché si sta scrivendo, scorrendo o anche solo tenendo la penna sopra lo schermo
+    // (il salvataggio blocca la pagina per decine di ms). Dopo 15 s si salva comunque.
+    if(userBusy(1200) && (Date.now() - pendingSince) < 15000){ saveTimer = setTimeout(runSave, 600); return; }
+    pendingSince = 0;
     if(activeNote && thumbPending){ updateThumb(activeNote); }
     thumbPending = false;
     persist();
@@ -743,7 +783,14 @@
   function persistLocal(){
     if(idbOk){
       writeUiPrefs();
-      idbSet('notes', state.notes).catch(showNotSaved);
+      var puts = [['idx', state.notes.map(function(n){ return n.id; })]], dels = [], now = {}, wrote = [];
+      state.notes.forEach(function(n){
+        now[n.id] = 1;
+        if(n.id===state.activeId || savedRev[n.id]!==n.updatedAt || !savedIds[n.id]){ puts.push(['n:'+n.id, n]); wrote.push(n); }
+      });
+      Object.keys(savedIds).forEach(function(id){ if(!now[id]){ dels.push('n:'+id); delete savedIds[id]; delete savedRev[id]; } });
+      wrote.forEach(function(n){ savedRev[n.id] = n.updatedAt; savedIds[n.id] = 1; });
+      idbWriteMany(puts, dels).catch(function(e){ wrote.forEach(function(n){ delete savedRev[n.id]; delete savedIds[n.id]; }); showNotSaved(e); });
     } else {
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ notes: state.notes, activeId: state.activeId, ui: state.ui })); }
       catch(e){ showNotSaved(e); }
@@ -789,18 +836,28 @@
   var renderQueue = [];
   var renderRaf = 0;
   var RENDER_BUDGET_MS = 7;
+  /* Allocare un canvas grande costa ~25 ms: la tela che esce dalla finestra viene tenuta da parte (una sola)
+     e riusata per la pagina che entra, invece di crearne una nuova ad ogni scorrimento. */
+  var spareInk = null;
+  function dropSpareInk(){ if(spareInk){ spareInk.width = 1; spareInk.height = 1; spareInk = null; } }
   function releasePageInk(i){
     var pi = pageInk[i]; if(!pi) return;
-    pi.canvas.width = 1; pi.canvas.height = 1; // libera subito la memoria grafica
     if(pi.canvas.parentNode) pi.canvas.parentNode.removeChild(pi.canvas);
     delete pageInk[i];
+    var w = Math.max(1, Math.round(canvasCssW*dpr)), h = Math.max(1, Math.round(PAGE_HEIGHT_CSS*dpr));
+    if(!spareInk && pi.canvas.width===w && pi.canvas.height===h){ spareInk = pi.canvas; }
+    else { pi.canvas.width = 1; pi.canvas.height = 1; }
   }
-  function releaseAllPageInk(){ Object.keys(pageInk).forEach(function(k){ releasePageInk(k); }); renderQueue = []; }
+  function releaseAllPageInk(){ Object.keys(pageInk).forEach(function(k){ releasePageInk(k); }); dropSpareInk(); renderQueue = []; }
   function createPageInk(i){
-    var c = document.createElement('canvas');
-    c.className = 'page-ink';
-    c.width = Math.max(1, Math.round(canvasCssW*dpr));
-    c.height = Math.max(1, Math.round(PAGE_HEIGHT_CSS*dpr));
+    var w = Math.max(1, Math.round(canvasCssW*dpr)), h = Math.max(1, Math.round(PAGE_HEIGHT_CSS*dpr));
+    var c;
+    if(spareInk && spareInk.width===w && spareInk.height===h){
+      c = spareInk; spareInk = null;
+      var cc = c.getContext('2d'); cc.setTransform(1,0,0,1,0,0); cc.clearRect(0,0,w,h);
+    } else {
+      c = document.createElement('canvas'); c.className = 'page-ink'; c.width = w; c.height = h;
+    }
     c.style.top = (pageOffsets[i]||0) + 'px';
     c.style.width = canvasCssW + 'px';
     c.style.height = PAGE_HEIGHT_CSS + 'px';
@@ -1149,67 +1206,139 @@
   }
 
   /* ===================== TOOL / COLOR UI ===================== */
-  /* Il selettore colore nativo NON deve mai essere ricreato mentre è aperto: farlo lo chiude subito
-     (era questo il difetto). Lo si crea una volta sola e i pallini attorno si aggiornano "sul posto". */
-  var customLabel = null, customInput = null;
+  /* Pallini fissi (come all'inizio) + colore "matita". Qualsiasi altro colore si sceglie dal pannello
+     con ricerca (pulsante arcobaleno): resta attivo ma NON viene aggiunto ai pallini. */
+  var PENCIL_COLOR = '#4B4F55';
+  var customBtn = null, colorPop = null, colorSearch = null, colorGrid = null, colorFamRow = null, colorFam = -1, colorHexInput = null;
+  var COLOR_FAMILIES = [
+    {n:'Rosso',h:0,k:'rosso bordeaux ciliegia rubino'}, {n:'Arancione',h:24,k:'arancio arancione ruggine'},
+    {n:'Giallo',h:50,k:'giallo senape oro limone'}, {n:'Lime',h:80,k:'lime pistacchio'},
+    {n:'Verde',h:130,k:'verde bosco foresta smeraldo oliva'}, {n:'Turchese',h:175,k:'turchese acqua petrolio menta'},
+    {n:'Azzurro',h:200,k:'azzurro cielo celeste ciano'}, {n:'Blu',h:225,k:'blu navy cobalto oltremare'},
+    {n:'Viola',h:270,k:'viola indaco lavanda melanzana'}, {n:'Rosa',h:322,k:'rosa magenta fucsia'},
+    {n:'Marrone',h:28,k:'marrone caffe cioccolato terra',brown:true}, {n:'Grigio',h:215,k:'grigio nero bianco antracite grafite matita',grey:true}
+  ];
+  var SHADES = [['molto scuro',70,17],['scuro',68,29],['medio',64,41],['vivace',80,50],['luminoso',84,62],['chiaro',80,75],['pastello',70,87]];
+  var GREY_NAMES = [['nero',8,8],['antracite',8,18],['grafite',7,30],['grigio scuro',6,44],['grigio',5,58],['grigio chiaro',5,75],['quasi bianco',5,92]];
+  function hslToHex(h,s,l){
+    s/=100; l/=100; var k=function(n){return (n+h/30)%12;}, a=s*Math.min(l,1-l);
+    var f=function(n){ var v=l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1))); return ('0'+Math.round(v*255).toString(16)).slice(-2); };
+    return '#'+f(0)+f(8)+f(4);
+  }
+  function norm(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+  var ALL_COLORS = [];
+  COLOR_FAMILIES.forEach(function(fam, fi){
+    var list = fam.grey ? GREY_NAMES : SHADES.map(function(s){ return [s[0], fam.brown?40:s[1], fam.brown? (s[2]*0.9+4) : s[2]]; });
+    list.forEach(function(s){
+      var hex = hslToHex(fam.h, s[1], s[2]);
+      var name = fam.grey ? s[0].charAt(0).toUpperCase()+s[0].slice(1) : fam.n+' '+s[0];
+      ALL_COLORS.push({hex:hex, name:name, fam:fi, hay:norm(name+' '+fam.k)});
+    });
+  });
   function isHex(c){ return /^#[0-9a-fA-F]{6}$/.test(c||''); }
   function currentToolColor(){ return (state.ui.tool==='highlighter') ? state.ui.hlColor : state.ui.penColor; }
+  function setToolColor(c){
+    if(state.ui.tool==='highlighter') state.ui.hlColor = c; else state.ui.penColor = c;
+    markActiveSwatches();
+    scheduleSync({light:true});
+  }
   function markActiveSwatches(){
     var cur = String(currentToolColor()).toLowerCase(), found = false;
     Array.prototype.forEach.call(colorPanel.querySelectorAll('.swatch[data-color]'), function(s){
       var on = s.getAttribute('data-color').toLowerCase()===cur; if(on) found = true;
       s.classList.toggle('active', on);
     });
-    if(customLabel){
-      customLabel.classList.toggle('active', !found);
-      customLabel.style.background = found ? '' : cur;
-      if(!found && isHex(cur) && customInput.value !== cur) customInput.value = cur;
+    if(customBtn){
+      customBtn.classList.toggle('active', !found);
+      customBtn.style.background = found ? '' : cur; // il colore scelto si vede sul pulsante, senza aggiungere pallini
     }
   }
-  function rememberCustomColor(c){
-    if(!isHex(c)) return;
-    var all = PEN_COLORS.concat(HL_COLORS).map(function(x){ return x.toLowerCase(); });
-    if(all.indexOf(c.toLowerCase())!==-1) return;
-    var list = (state.ui.customColors||[]).filter(function(x){ return x.toLowerCase()!==c.toLowerCase(); });
-    list.unshift(c); state.ui.customColors = list.slice(0,6);
-    scheduleSync({light:true});
-  }
-  function ensureCustomPicker(){
-    if(customLabel) return;
-    customLabel = document.createElement('label');
-    customLabel.className = 'swatch swatch-custom';
-    customLabel.title = 'Altro colore\u2026';
-    customInput = document.createElement('input');
-    customInput.type = 'color'; customInput.value = '#1c1c1c';
-    customInput.addEventListener('input', function(){
-      if(state.ui.tool==='highlighter') state.ui.hlColor = customInput.value; else state.ui.penColor = customInput.value;
-      markActiveSwatches();
-      scheduleSync({light:true});
+  function renderColorGrid(){
+    var q = norm(colorSearch.value).trim(), terms = q ? q.split(/\s+/) : [];
+    colorGrid.innerHTML = '';
+    var hexQ = q.replace('#',''); 
+    if(/^[0-9a-f]{6}$/.test(hexQ)) addCell('#'+hexQ, '#'+hexQ);
+    var count = 0;
+    ALL_COLORS.forEach(function(c){
+      if(colorFam>=0 && c.fam!==colorFam) return;
+      for(var i=0;i<terms.length;i++){ if(c.hay.indexOf(terms[i])===-1) return; }
+      addCell(c.hex, c.name); count++;
     });
-    customInput.addEventListener('change', function(){ rememberCustomColor(customInput.value); buildSwatches(); });
-    customLabel.appendChild(customInput);
+    if(!count && !/^[0-9a-f]{6}$/.test(hexQ)){ var e = document.createElement('div'); e.className='cp-empty'; e.textContent='Nessun colore trovato: prova "verde", "blu scuro", "pastello"…'; colorGrid.appendChild(e); }
+    function addCell(hex, name){
+      var b = document.createElement('button'); b.type='button'; b.className='cp-cell'; b.style.background = hex; b.title = name+' '+hex;
+      if(String(currentToolColor()).toLowerCase()===hex.toLowerCase()) b.classList.add('on');
+      b.addEventListener('click', function(){ setToolColor(hex); closeColorPop(); });
+      colorGrid.appendChild(b);
+    }
+  }
+  function buildColorPop(){
+    colorPop = document.createElement('div'); colorPop.id = 'colorPop';
+    colorSearch = document.createElement('input'); colorSearch.type='text'; colorSearch.id='colorSearch'; colorSearch.placeholder='Cerca colore (es. verde, blu scuro, pastello)…'; colorSearch.autocomplete='off';
+    colorSearch.addEventListener('input', renderColorGrid);
+    colorFamRow = document.createElement('div'); colorFamRow.id='colorFams';
+    function chip(label, idx, hex){
+      var b = document.createElement('button'); b.type='button'; b.className='cp-fam'+(idx===colorFam?' on':''); b.setAttribute('data-fam', idx);
+      if(hex){ var d=document.createElement('span'); d.className='cp-fdot'; d.style.background=hex; b.appendChild(d); }
+      b.appendChild(document.createTextNode(label));
+      b.addEventListener('click', function(){
+        colorFam = idx;
+        Array.prototype.forEach.call(colorFamRow.children, function(x){ x.classList.toggle('on', +x.getAttribute('data-fam')===colorFam); });
+        renderColorGrid();
+      });
+      colorFamRow.appendChild(b);
+    }
+    chip('Tutti', -1, null);
+    COLOR_FAMILIES.forEach(function(f, i){ chip(f.n, i, hslToHex(f.h, f.grey?6:(f.brown?40:80), f.grey?45:(f.brown?35:50))); });
+    colorGrid = document.createElement('div'); colorGrid.id='colorGrid';
+    var more = document.createElement('label'); more.id='colorMore'; more.textContent='Selettore completo… ';
+    colorHexInput = document.createElement('input'); colorHexInput.type='color'; colorHexInput.value='#1c1c1c';
+    colorHexInput.addEventListener('input', function(){ setToolColor(colorHexInput.value); });
+    more.appendChild(colorHexInput);
+    colorPop.appendChild(colorSearch); colorPop.appendChild(colorFamRow); colorPop.appendChild(colorGrid); colorPop.appendChild(more);
+    colorPop.addEventListener('keydown', function(e){ if(e.key==='Escape') closeColorPop(); });
+    document.body.appendChild(colorPop);
+  }
+  function openColorPop(){
+    if(!colorPop) buildColorPop();
+    colorSearch.value = ''; colorFam = -1;
+    Array.prototype.forEach.call(colorFamRow.children, function(x){ x.classList.toggle('on', +x.getAttribute('data-fam')===-1); });
+    if(isHex(currentToolColor())) colorHexInput.value = currentToolColor();
+    renderColorGrid();
+    var r = customBtn.getBoundingClientRect();
+    colorPop.style.display = 'block';
+    var w = colorPop.offsetWidth;
+    colorPop.style.left = Math.max(8, Math.min(r.left + r.width/2 - w/2, window.innerWidth - w - 8)) + 'px';
+    colorPop.style.bottom = (window.innerHeight - r.top + 12) + 'px';
+    setTimeout(function(){ try{ colorSearch.focus(); }catch(e){} }, 0);
+  }
+  function closeColorPop(){ if(colorPop) colorPop.style.display = 'none'; }
+  document.addEventListener('pointerdown', function(e){
+    if(colorPop && colorPop.style.display==='block' && !colorPop.contains(e.target) && !(customBtn && customBtn.contains(e.target))) closeColorPop();
+  });
+  function ensureCustomBtn(){
+    if(customBtn) return;
+    customBtn = document.createElement('button'); customBtn.type='button';
+    customBtn.className = 'swatch swatch-custom'; customBtn.title = 'Altri colori… (con ricerca)';
+    customBtn.addEventListener('click', function(){ if(colorPop && colorPop.style.display==='block') closeColorPop(); else openColorPop(); });
   }
   function buildSwatches(){
-    ensureCustomPicker();
+    ensureCustomBtn();
     var tool = state.ui.tool, isHl = (tool==='highlighter');
-    // toglie solo i pallini (mai il selettore nativo)
-    Array.prototype.slice.call(colorPanel.children).forEach(function(ch){ if(ch!==customLabel) colorPanel.removeChild(ch); });
-    if(!customLabel.parentNode) colorPanel.appendChild(customLabel);
-    if(tool==='eraser'){ customLabel.style.display = 'none'; return; }
-    customLabel.style.display = '';
-    var colors = (isHl ? HL_COLORS : PEN_COLORS).concat(isHl ? [] : (state.ui.customColors||[]));
-    colors.forEach(function(c){
+    Array.prototype.slice.call(colorPanel.children).forEach(function(ch){ if(ch!==customBtn) colorPanel.removeChild(ch); });
+    if(!customBtn.parentNode) colorPanel.appendChild(customBtn);
+    if(tool==='eraser'){ customBtn.style.display = 'none'; closeColorPop(); return; }
+    customBtn.style.display = '';
+    function addSwatch(c, extra){
       var b = document.createElement('button');
-      b.className = 'swatch'; b.setAttribute('data-color', c);
-      b.style.background = c; b.title = c;
-      b.addEventListener('click', function(){
-        if(state.ui.tool==='highlighter') state.ui.hlColor = c; else state.ui.penColor = c;
-        markActiveSwatches();
-        scheduleSync({light:true});
-      });
-      colorPanel.insertBefore(b, customLabel);
-    });
-    if(isHex(currentToolColor())) customInput.value = currentToolColor();
+      b.className = 'swatch' + (extra||''); b.setAttribute('data-color', c);
+      b.style.background = c; b.title = (extra ? 'Matita (grafite)' : c);
+      if(extra){ b.innerHTML = '<svg viewBox="0 0 24 24"><use href="#ic-pencil"/></svg>'; }
+      b.addEventListener('click', function(){ setToolColor(c); });
+      colorPanel.insertBefore(b, customBtn);
+    }
+    (isHl ? HL_COLORS : PEN_COLORS).forEach(function(c){ addSwatch(c); });
+    if(!isHl) addSwatch(PENCIL_COLOR, ' swatch-pencil');
     markActiveSwatches();
   }
   function setTool(tool){
@@ -1456,6 +1585,7 @@
     if(idx !== visiblePageIndex){
       visiblePageIndex = idx;
       activeNote.pageIndex = idx;
+      (state.ui.pos = state.ui.pos || {})[activeNote.id] = idx;
       updatePageNav();
       updateBgButtons();
       updateUndoRedoButtons();
@@ -1481,13 +1611,19 @@
     if(!n) return;
     activeNote = n;
     state.activeId = id;
-    visiblePageIndex = clamp(n.pageIndex||0, 0, n.pages.length-1);
+    var savedPos = (state.ui.pos && typeof state.ui.pos[id]==='number') ? state.ui.pos[id] : n.pageIndex;
+    visiblePageIndex = clamp(savedPos||0, 0, n.pages.length-1);
     titleInput.value = n.title || '';
     updateDateLabel();
     updateSubjectPill();
     updateFavBtn();
+    var targetIdx = visiblePageIndex; // buildPagesLayout ricalcola la pagina dalla posizione di scorrimento vecchia: la ripristiniamo
     buildPagesLayout(false);
-    canvasOuter.scrollTop = pageOffsets[visiblePageIndex] || 0;
+    visiblePageIndex = activeNote.pageIndex = targetIdx;
+    (state.ui.pos = state.ui.pos || {})[id] = targetIdx;
+    applyCanvasWindow(computeWindowStart(targetIdx, n.pages.length));
+    canvasOuter.scrollTop = pageOffsets[targetIdx] || 0;
+    updatePageNav(); updateBgButtons();
     updateUndoRedoButtons();
     renderSidebarList();
     closeSidebarMobile();
@@ -2046,6 +2182,7 @@
     var loading = false, loadFailed = false;
     var firstSnapshotDone = false;
     var remoteInfo = {};  // id -> {updatedAt, chunks}
+    var pushWaitSince = 0;
     var pushTimer = null, pushing = false, pushAgain = false, retryTimer = null;
     var applyQueue = Promise.resolve();
     var status = configured ? 'starting' : 'unconfigured';
@@ -2268,7 +2405,9 @@
     function pushNow(){
       pushTimer = null;
       if(!user || !firstSnapshotDone) return;
-      if(drawing){ pushSoon(1500); return; } // mai mentre si sta scrivendo
+      // l'invio comprime l'intera nota (decine/centinaia di ms): solo quando si è fermi; dopo 30 s parte comunque
+      if(userBusy(2500)){ if(!pushWaitSince) pushWaitSince = Date.now(); if(Date.now() - pushWaitSince < 30000){ pushSoon(1500); return; } }
+      pushWaitSince = 0;
       if(pushing){ pushAgain = true; return; }
       var todo = state.notes.filter(needsPush);
       var tombs = Object.keys(meta.tomb);
