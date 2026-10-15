@@ -171,6 +171,12 @@
   #menuToggle:hover{ background:rgba(255,255,255,0.06); }
   #menuToggle svg{ width:20px; height:20px; }
   #titleInput{ flex:0 1 50%; max-width:50%; min-width:120px; background:transparent; border:none; color:var(--text-on-navy); font-family:var(--font-serif); font-size:20px; font-weight:600; padding:4px 2px; }
+  @supports (field-sizing: content){ #titleInput{ field-sizing:content; flex:0 1 auto; } } /* il campo segue la lunghezza del testo (max metà pagina), così la matita gli sta accanto */
+  #titleEditBtn{ background:none; border:none; color:var(--text-on-navy-dim); cursor:pointer; padding:6px; border-radius:8px; display:flex; }
+  #titleEditBtn svg{ width:16px; height:16px; }
+  #titleEditBtn:hover{ color:var(--text-on-navy); background:rgba(255,255,255,0.06); }
+  #titleInput[readonly]{ cursor:default; caret-color:transparent; text-overflow:ellipsis; }
+  #titleInput:not([readonly]){ background:rgba(255,255,255,0.06); border-radius:6px; }
   #titleInput::placeholder{ color:var(--text-on-navy-dim); font-weight:500; }
   #dateLabel{ white-space:nowrap; }
   #saveStatus{ font-size:11px; color:var(--brass-soft); min-width:56px; text-align:right; opacity:0; transition:opacity .25s ease; }
@@ -393,7 +399,8 @@
     <header id="pageHeader">
       <div id="pageHeaderTop">
         <button id="menuToggle" aria-label="Mostra elenco note" title="Mostra elenco note (Ctrl+B)"><svg><use href="#ic-menu"/></svg></button>
-        <input id="titleInput" type="text" placeholder="Titolo…" maxlength="120">
+        <input id="titleInput" type="text" placeholder="Titolo…" maxlength="120" readonly aria-label="Titolo della nota (doppio clic per modificare)">
+        <button id="titleEditBtn" type="button" title="Rinomina la nota (o doppio clic sul titolo)" aria-label="Rinomina la nota"><svg><use href="#ic-pencil"/></svg></button>
         <button id="favBtn" title="Preferito"><svg><use href="#ic-star"/></svg></button>
         <span id="hdrSpacer"></span>
         <button id="installBtn" class="hdr-btn"><svg><use href="#ic-install"/></svg>Installa</button>
@@ -1636,7 +1643,7 @@
     openNote(n.id);
     renderSidebarList();
     scheduleSync();
-    titleInput.focus();
+    startTitleEdit();
   }
   function deleteNote(id){
     showConfirm('Eliminare questa nota? L\u2019azione non pu\u00f2 essere annullata.', function(){
@@ -1665,6 +1672,15 @@
     renderSidebarList();
     scheduleSync();
   });
+  /* Il titolo è in sola lettura: un tocco involontario (gomito, palmo) non lo attiva più e non interrompe
+     la scrittura. Si modifica con il doppio clic sul titolo oppure col pulsante matita accanto. */
+  function startTitleEdit(){ titleInput.readOnly = false; titleInput.focus(); try{ titleInput.select(); }catch(e){} }
+  function endTitleEdit(){ titleInput.readOnly = true; if(document.activeElement===titleInput) titleInput.blur(); }
+  titleInput.addEventListener('dblclick', function(){ if(titleInput.readOnly) startTitleEdit(); });
+  titleInput.addEventListener('focus', function(){ if(titleInput.readOnly) titleInput.blur(); });
+  titleInput.addEventListener('blur', function(){ titleInput.readOnly = true; });
+  titleInput.addEventListener('keydown', function(e){ if(e.key==='Enter' || e.key==='Escape'){ e.preventDefault(); endTitleEdit(); } });
+  $('titleEditBtn').addEventListener('click', startTitleEdit);
   $('newNoteBtn').addEventListener('click', createNote);
   $('clearBtn').addEventListener('click', function(){
     if(!activeNote) return;
@@ -2158,6 +2174,33 @@
   });
   backdrop.addEventListener('click', closeSidebarMobile);
   if(mqMobile.addEventListener) mqMobile.addEventListener('change', function(){ closeSidebarMobile(); relayoutSoon(50); });
+
+  /* ===================== PROTEZIONE DAL PALMO / MENU DEL BROWSER ===================== */
+  /* Finché la penna è vicina allo schermo (ultimi 3 s), i tocchi con il dito/palmo/gomito sull'intestazione
+     (titolo, cestino, preferito, esporta...) e sulla barra degli strumenti vengono ignorati. La barra laterale
+     resta usabile col dito, e la penna funziona dappertutto. Senza penna (es. telefono) non cambia nulla. */
+  var lastPenSeen = 0, palmBlockUntil = 0;
+  function inGuardedZone(t){ return !!(t && t.closest && t.closest('#pageHeader, #toolbarDock')); }
+  ['pointermove','pointerdown','pointerover','pointerenter'].forEach(function(ev){
+    window.addEventListener(ev, function(e){ if(e.pointerType==='pen') lastPenSeen = Date.now(); }, {capture:true, passive:true});
+  });
+  window.addEventListener('pointerdown', function(e){
+    if(e.pointerType==='touch' && (Date.now()-lastPenSeen) < 3000 && inGuardedZone(e.target)){
+      e.preventDefault(); e.stopPropagation(); palmBlockUntil = Date.now() + 900;
+    }
+  }, true);
+  ['mousedown','mouseup','click','dblclick'].forEach(function(ev){
+    window.addEventListener(ev, function(e){
+      if(Date.now() < palmBlockUntil && inGuardedZone(e.target)){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); }
+    }, true);
+  });
+  // Tenere premuta la penna un attimo di troppo = "clic destro" in Windows: apriva il menu di Chrome (Indietro, Stampa...).
+  // Si blocca ovunque, tranne nei campi di testo in modifica (dove serve per copiare/incollare).
+  document.addEventListener('contextmenu', function(e){
+    var t = e.target;
+    if(t && t.closest && t.closest('input[type="text"]:not([readonly]), input[type="password"], input[type="email"], textarea')) return;
+    e.preventDefault();
+  }, true);
 
   /* ===================== SCORCIATOIE DA TASTIERA ===================== */
   document.addEventListener('keydown', function(e){
