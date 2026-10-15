@@ -99,7 +99,7 @@
   .note-thumb{ width:44px; height:58px; border-radius:4px; background:var(--paper); flex:none; background-size:cover; background-position:center; box-shadow:0 2px 6px rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.08); }
   .note-meta{ min-width:0; flex:1; }
   .note-title-row{ display:flex; align-items:center; gap:4px; }
-  .note-title-row svg{ width:11px; height:11px; flex:none; fill:var(--brass); stroke:none; }
+  .note-title-row svg{ width:12px; height:12px; flex:none; fill:var(--brass); stroke:var(--brass); stroke-width:1.6; stroke-linejoin:round; }
   .note-title{ font-size:13.5px; font-weight:600; color:var(--text-on-navy); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .note-title.placeholder{ color:var(--text-on-navy-dim); font-weight:400; font-style:italic; }
   .note-date{ font-size:11px; color:var(--text-on-navy-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -170,7 +170,7 @@
   #menuToggle{ display:none; background:none; border:none; color:var(--text-on-navy); cursor:pointer; padding:6px; border-radius:8px; }
   #menuToggle:hover{ background:rgba(255,255,255,0.06); }
   #menuToggle svg{ width:20px; height:20px; }
-  #titleInput{ flex:1; min-width:120px; background:transparent; border:none; color:var(--text-on-navy); font-family:var(--font-serif); font-size:20px; font-weight:600; padding:4px 2px; }
+  #titleInput{ flex:0 1 50%; max-width:50%; min-width:120px; background:transparent; border:none; color:var(--text-on-navy); font-family:var(--font-serif); font-size:20px; font-weight:600; padding:4px 2px; }
   #titleInput::placeholder{ color:var(--text-on-navy-dim); font-weight:500; }
   #dateLabel{ white-space:nowrap; }
   #saveStatus{ font-size:11px; color:var(--brass-soft); min-width:56px; text-align:right; opacity:0; transition:opacity .25s ease; }
@@ -182,8 +182,9 @@
   #installBtn{ display:none; border-color:var(--brass); color:var(--brass-soft); }
   #installBtn.show{ display:flex; }
   #installBtn:hover{ background:rgba(184,147,74,0.14); }
+  #hdrSpacer{ flex:1 1 0; min-width:0; pointer-events:none; }
   #favBtn{ background:none; border:none; color:var(--text-on-navy-dim); cursor:pointer; padding:6px; border-radius:8px; display:flex; }
-  #favBtn svg{ width:18px; height:18px; }
+  #favBtn svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linejoin:round; }
   #favBtn:hover{ color:var(--text-on-navy); background:rgba(255,255,255,0.06); }
   #favBtn.active{ color:var(--brass); }
   #favBtn.active svg{ fill:currentColor; }
@@ -201,6 +202,7 @@
   .nav-btn svg{ width:14px; height:14px; }
   .nav-btn.danger:hover{ color:#e8a2a4; background:rgba(166,61,64,0.12); }
 
+  #toolbar, #canvasOuter{ -webkit-user-select:none; user-select:none; }
   #canvasOuter{ flex:1; min-height:0; padding:14px 22px 18px; overflow-y:auto; overflow-x:hidden; position:relative; direction:rtl; }
   #pagesTrack{ direction:ltr; }
   #pagesTrack{ position:relative; width:100%; }
@@ -220,8 +222,11 @@
     position:absolute; top:10px; left:16px; font-size:10.5px; font-weight:600; letter-spacing:.03em;
     color:var(--text-ink-dim); background:rgba(255,255,255,0.65); padding:2px 8px; border-radius:9px; z-index:2; pointer-events:none;
   }
-  #inkCanvas{ position:absolute; left:0; top:0; width:100%; pointer-events:none; }
-  #previewCanvas{ position:absolute; left:0; top:0; width:100%; touch-action:none; }
+  /* Un canvas per ogni pagina vicina a quella che si guarda (prima: due canvas altissimi). Scorrere fra
+     pagine già disegnate non costa nulla; entra in scena una pagina nuova alla volta, disegnata a fette. */
+  .page-ink{ position:absolute; left:0; pointer-events:none; z-index:1; }
+  #previewCanvas{ position:absolute; left:0; top:0; pointer-events:none; display:none; z-index:3; }
+  #inputLayer{ position:absolute; left:0; top:0; width:100%; height:100%; touch-action:none; z-index:4; }
 
   /* ---------- TOOLBAR ---------- */
   #toolbarDock{ display:flex; justify-content:center; padding:0 14px 16px; }
@@ -234,6 +239,11 @@
   .tool-btn.active{ color:var(--ink-navy); background:var(--brass); }
   .divider{ width:1px; align-self:stretch; background:rgba(255,255,255,0.1); margin:2px 0; }
 
+  #shapeGroup{ display:none; align-items:center; gap:4px; }
+  .shape-btn{ background:none; border:1px solid rgba(255,255,255,0.14); color:var(--text-on-navy-dim); border-radius:8px; padding:5px; cursor:pointer; display:flex; }
+  .shape-btn svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linejoin:round; }
+  .shape-btn:hover{ color:var(--text-on-navy); }
+  .shape-btn.active{ color:var(--ink-navy); background:var(--brass); border-color:var(--brass); }
   #arrowToggle{ display:none; flex-direction:column; align-items:center; gap:3px; background:none; border:1px solid rgba(255,255,255,0.14); color:var(--text-on-navy-dim); cursor:pointer; padding:5px 8px; border-radius:9px; min-width:44px; }
   #arrowToggle svg{ width:16px; height:16px; }
   #arrowToggle span{ font-size:9px; font-weight:600; }
@@ -243,6 +253,7 @@
   .swatch{ width:24px; height:24px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0; position:relative; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.15); }
   .swatch.active{ border-color:var(--brass-soft); box-shadow:0 0 0 2px var(--ink-navy), 0 0 0 4px var(--brass); }
   .swatch-custom{ display:inline-block; background:conic-gradient(red,orange,yellow,green,blue,violet,red); overflow:hidden; }
+  .swatch-custom.active{ border-color:var(--brass-soft); }
   .swatch-custom input{ position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
 
   #sizeWrap{ display:flex; align-items:center; gap:8px; color:var(--text-on-navy-dim); font-size:11px; }
@@ -266,6 +277,11 @@
   #modalOverlay.show{ display:flex; }
   #modalBox{ background:var(--paper); color:var(--text-ink); border-radius:12px; padding:20px; max-width:360px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,0.4); }
   #modalBox p{ font-size:14px; line-height:1.5; margin:0 0 18px; }
+  #folderChoices{ display:flex; flex-wrap:wrap; gap:6px; margin:12px 0 4px; }
+  .folder-opt{ display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:16px; border:1px solid rgba(0,0,0,0.18); background:#fff; color:var(--text-ink); font:inherit; font-size:13px; cursor:pointer; }
+  .folder-opt:hover{ border-color:var(--brass); background:rgba(184,147,74,0.12); }
+  .folder-opt.current{ background:var(--ink-navy); color:#fff; border-color:var(--ink-navy); }
+  .folder-new-label{ margin-top:14px; font-size:12.5px; color:var(--text-ink-dim); }
   #modalPromptInput{ width:100%; margin-top:10px; padding:8px 10px; border-radius:8px; border:1px solid rgba(0,0,0,0.18); font-size:14px; font-family:inherit; }
   #modalBtns{ display:flex; justify-content:flex-end; gap:8px; }
   #modalBtns button{ border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid transparent; }
@@ -329,7 +345,7 @@
   <symbol id="ic-eraser" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="11" width="15" height="7.5" rx="1.6" transform="rotate(-25 11 14.75)"/><line x1="8" y1="20" x2="20" y2="20"/></symbol>
   <symbol id="ic-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2"/><line x1="8" y1="8.5" x2="16" y2="8.5"/><line x1="8" y1="12.5" x2="16" y2="12.5"/><line x1="8" y1="16.5" x2="13" y2="16.5"/></symbol>
   <symbol id="ic-install" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v6"/><path d="M9.5 11.5L12 14l2.5-2.5"/></symbol>
-  <symbol id="ic-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><polygon points="12,3 14.7,9.3 21.5,9.7 16.2,13.9 18,20.6 12,16.8 6,20.6 7.8,13.9 2.5,9.7 9.3,9.3"/></symbol>
+  <symbol id="ic-star" viewBox="0 0 24 24"><polygon points="12,3 14.7,9.3 21.5,9.7 16.2,13.9 18,20.6 12,16.8 6,20.6 7.8,13.9 2.5,9.7 9.3,9.3"/></symbol>
   <symbol id="ic-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="17" y2="12"/><polyline points="12,7 17,12 12,17"/></symbol>
   <symbol id="ic-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L15.5 5.5a1.8 1.8 0 0 1 2.5 0l0.5.5a1.8 1.8 0 0 1 0 2.5L8 19l-4 1z"/></symbol>
   <symbol id="ic-sidebar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2"/><line x1="9.5" y1="4.5" x2="9.5" y2="19.5"/><polyline points="16,9.5 13.5,12 16,14.5"/></symbol>
@@ -365,6 +381,7 @@
         <button id="menuToggle" aria-label="Mostra elenco note" title="Mostra elenco note (Ctrl+B)"><svg><use href="#ic-menu"/></svg></button>
         <input id="titleInput" type="text" placeholder="Titolo…" maxlength="120">
         <button id="favBtn" title="Preferito"><svg><use href="#ic-star"/></svg></button>
+        <span id="hdrSpacer"></span>
         <button id="installBtn" class="hdr-btn"><svg><use href="#ic-install"/></svg>Installa</button>
         <button id="exportBtn" class="hdr-btn"><svg><use href="#ic-download"/></svg>Esporta pagina</button>
         <button id="clearBtn" class="hdr-btn danger"><svg><use href="#ic-trash"/></svg>Svuota pagina</button>
@@ -387,8 +404,8 @@
 
     <div id="canvasOuter">
       <div id="pagesTrack">
-        <canvas id="inkCanvas"></canvas>
         <canvas id="previewCanvas"></canvas>
+        <div id="inputLayer"></div>
       </div>
     </div>
 
@@ -398,9 +415,16 @@
           <button class="tool-btn" data-tool="pen"><svg><use href="#ic-pen"/></svg><span>Penna</span></button>
           <button class="tool-btn" data-tool="highlighter"><svg><use href="#ic-highlighter"/></svg><span>Evidenzia</span></button>
           <button class="tool-btn" data-tool="underline"><svg viewBox="0 0 24 24"><text x="6" y="16" font-size="13" font-family="Georgia, serif" fill="currentColor">U</text><line x1="5" y1="19.5" x2="16" y2="19.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Riga</span></button>
+          <button class="tool-btn" data-tool="shape" title="Cerchi, quadrati, triangoli, rombi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><circle cx="9" cy="9.5" r="5"/><rect x="11.5" y="11.5" width="9" height="9" rx="1"/></svg><span>Forme</span></button>
           <button class="tool-btn" data-tool="eraser"><svg><use href="#ic-eraser"/></svg><span>Gomma</span></button>
         </div>
-        <button id="arrowToggle" title="Disegna come freccia"><svg><use href="#ic-arrow"/></svg><span>Freccia</span></button>
+        <div id="shapeGroup">
+          <button class="shape-btn" data-shape="ellipse" title="Cerchio / ellisse"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></svg></button>
+          <button class="shape-btn" data-shape="rect" title="Quadrato / rettangolo"><svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="13" rx="1"/></svg></button>
+          <button class="shape-btn" data-shape="triangle" title="Triangolo"><svg viewBox="0 0 24 24"><polygon points="12,4.5 20.5,19 3.5,19"/></svg></button>
+          <button class="shape-btn" data-shape="diamond" title="Rombo"><svg viewBox="0 0 24 24"><polygon points="12,3.5 20.5,12 12,20.5 3.5,12"/></svg></button>
+        </div>
+        <button id="arrowToggle" title="Disegna come freccia (se curvi il tratto con la penna, la freccia si curva)"><svg><use href="#ic-arrow"/></svg><span>Freccia</span></button>
         <div class="divider"></div>
         <div id="colorPanel"></div>
         <div class="divider"></div>
@@ -509,7 +533,7 @@
   var state = {
     notes: [],
     activeId: null,
-    ui: { tool:'pen', penColor: PEN_COLORS[0], hlColor: HL_COLORS[0], lineArrow:false, sizes:{pen:4, highlighter:5, eraser:5, underline:3} }
+    ui: { tool:'pen', penColor: PEN_COLORS[0], hlColor: HL_COLORS[0], lineArrow:false, shapeKind:'ellipse', customColors:[], sizes:{pen:4, highlighter:5, eraser:5, underline:3, shape:3} }
   };
   var history = {};       // per nota: { past:[{pageIndex,stroke}], future:[...] } — annulla/ripeti
   var activeNote = null;
@@ -532,7 +556,6 @@
                          // per ridurre il rischio che un numero enorme di tratti tutti insieme
                          // causi un difetto di disegno come quello già trovato e corretto per Annulla.
   var windowStart = 0;
-  var canvasOffsetCss = 0;  // = pageOffsets[windowStart]: quanto il canvas è "sceso" rispetto alla cima della nota
   var visiblePageIndex = 0;
   var drawingPageIndex = 0; // pagina su cui si sta disegnando il tratto corrente
 
@@ -541,8 +564,8 @@
   var sidebar = $('sidebar'), backdrop = $('backdrop'), menuToggle = $('menuToggle');
   var noteList = $('noteList'), emptyState = $('emptyState'), searchInput = $('searchInput');
   var titleInput = $('titleInput'), dateLabel = $('dateLabel'), saveStatus = $('saveStatus');
-  var canvasOuter = $('canvasOuter'), pagesTrack = $('pagesTrack'), inkCanvas = $('inkCanvas'), previewCanvas = $('previewCanvas');
-  var inkCtx = inkCanvas.getContext('2d'), previewCtx = previewCanvas.getContext('2d');
+  var canvasOuter = $('canvasOuter'), pagesTrack = $('pagesTrack'), previewCanvas = $('previewCanvas'), inputLayer = $('inputLayer');
+  var previewCtx = previewCanvas.getContext('2d');
   var colorPanel = $('colorPanel'), sizeSlider = $('sizeSlider');
   var sizeCompactBtn = $('sizeCompactBtn'), sizeSliderCompact = $('sizeSliderCompact'), sizePopover = $('sizePopover'), sizeCompactDot = $('sizeCompactDot');
   function syncSizeCompactDot(){
@@ -570,7 +593,7 @@
   var modalOverlay = $('modalOverlay'), modalMsg = $('modalMsg'), modalCancel = $('modalCancel'), modalConfirm = $('modalConfirm');
   var subjectPill = $('subjectPill'), favBtn = $('favBtn'), favChip = $('favChip');
   var pageNavLabel = $('pageNavLabel'), pagePrevBtn = $('pagePrevBtn'), pageNextBtn = $('pageNextBtn'), pageAddBtn = $('pageAddBtn'), pageDelBtn = $('pageDelBtn');
-  var arrowToggle = $('arrowToggle');
+  var arrowToggle = $('arrowToggle'), shapeGroup = $('shapeGroup');
 
   /* ===================== UTIL ===================== */
   function uid(){ return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -643,6 +666,8 @@
             state.ui.penColor = parsed.ui.penColor || state.ui.penColor;
             state.ui.hlColor = parsed.ui.hlColor || state.ui.hlColor;
             state.ui.lineArrow = !!parsed.ui.lineArrow;
+            if(parsed.ui.shapeKind) state.ui.shapeKind = parsed.ui.shapeKind;
+            if(Array.isArray(parsed.ui.customColors)) state.ui.customColors = parsed.ui.customColors.filter(function(c){ return /^#[0-9a-fA-F]{6}$/.test(c); }).slice(0,6);
             state.ui.sidebarCollapsed = !!parsed.ui.sidebarCollapsed;
             state.ui.thumbFixVersion = parsed.ui.thumbFixVersion || 0;
             if(parsed.ui.sizes){ for(var k in state.ui.sizes){ if(parsed.ui.sizes[k]) state.ui.sizes[k] = parsed.ui.sizes[k]; } }
@@ -676,19 +701,37 @@
       state.activeId = state.notes[0].id;
     }
   }
-  var saveTimer = null;
-  function scheduleSync(){
+  /* Salvataggio. Riscrivere TUTTE le note costa decine di millisecondi (e cresce con il quaderno): se
+     succede mentre la penna sta per toccare lo schermo, si sente come uno "scatto". Per questo:
+     - cambi che riguardano solo l'interfaccia (strumento, colore, spessore, pagina visibile) salvano
+       soltanto le preferenze, minuscole, e non toccano le note;
+     - la riscrittura delle note aspetta che la penna stia ferma per un po' e non parte mai durante un tratto;
+     - la miniatura si ricalcola solo se è cambiata la pagina 1 (o la struttura delle pagine). */
+  var saveTimer = null, uiTimer = null, thumbPending = false;
+  var SAVE_DELAY = 1600;
+  function scheduleSync(opts){
+    opts = opts || {};
+    if(opts.light){
+      if(uiTimer) clearTimeout(uiTimer);
+      uiTimer = setTimeout(function(){ uiTimer = null; writeUiPrefs(); }, 400);
+      return;
+    }
+    if(!opts.noThumb) thumbPending = true;
     if(saveStatus){ saveStatus.textContent='Salvataggio…'; saveStatus.classList.add('show'); }
     if(saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(function(){
-      persist();
-      if(activeNote) updateThumb(activeNote);
-      renderSidebarList();
-      if(saveStatus){
-        saveStatus.textContent='Salvato';
-        setTimeout(function(){ saveStatus.classList.remove('show'); }, 1200);
-      }
-    }, 550);
+    saveTimer = setTimeout(runSave, SAVE_DELAY);
+  }
+  function runSave(){
+    saveTimer = null;
+    if(drawing){ saveTimer = setTimeout(runSave, 700); return; } // mai nel mezzo di un tratto
+    if(activeNote && thumbPending){ updateThumb(activeNote); }
+    thumbPending = false;
+    persist();
+    renderSidebarList();
+    if(saveStatus){
+      saveStatus.textContent='Salvato';
+      setTimeout(function(){ saveStatus.classList.remove('show'); }, 1200);
+    }
   }
   function writeUiPrefs(){
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeId: state.activeId, ui: state.ui, v:4 })); }catch(e){}
@@ -722,7 +765,11 @@
   function pageIndexAtY(yCss){
     if(!activeNote) return 0;
     for(var i=0;i<pageOffsets.length;i++){
-      if(yCss < pageOffsets[i] + PAGE_HEIGHT_CSS) return i;
+      if(yCss < pageOffsets[i] + PAGE_HEIGHT_CSS){
+        // nello spazio fra due pagine: la metà alta appartiene alla pagina sopra, quella bassa alla pagina sotto
+        if(i>0 && yCss < pageOffsets[i] - PAGE_GAP_CSS/2) return i-1;
+        return i;
+      }
     }
     return activeNote.pages.length-1;
   }
@@ -732,35 +779,83 @@
     start = Math.max(0, Math.min(start, Math.max(0, totalPages - WINDOW_PAGES)));
     return start;
   }
-  // Ridimensiona e riposiziona il canvas sulla finestra di pagine [newStart .. newStart+WINDOW_PAGES-1],
-  // poi ridisegna solo quelle. Va chiamata ogni volta che la finestra deve spostarsi.
+  /* ---------- Un canvas per pagina, disegnato a fette ----------
+     Solo le pagine della "finestra" (WINDOW_PAGES attorno a quella visibile) hanno un canvas.
+     Quando una pagina entra nella finestra il suo canvas viene creato e i tratti vengono disegnati
+     a piccole fette di tempo (RENDER_BUDGET_MS per fotogramma), così lo scorrimento non si blocca mai.
+     Prima di scrivere/annullare le fette in sospeso vengono completate di colpo (flushRender),
+     in modo che l'ordine dei tratti (gomma compresa) resti sempre corretto. */
+  var pageInk = {};            // indice pagina -> { canvas, ctx, next, done }
+  var renderQueue = [];
+  var renderRaf = 0;
+  var RENDER_BUDGET_MS = 7;
+  function releasePageInk(i){
+    var pi = pageInk[i]; if(!pi) return;
+    pi.canvas.width = 1; pi.canvas.height = 1; // libera subito la memoria grafica
+    if(pi.canvas.parentNode) pi.canvas.parentNode.removeChild(pi.canvas);
+    delete pageInk[i];
+  }
+  function releaseAllPageInk(){ Object.keys(pageInk).forEach(function(k){ releasePageInk(k); }); renderQueue = []; }
+  function createPageInk(i){
+    var c = document.createElement('canvas');
+    c.className = 'page-ink';
+    c.width = Math.max(1, Math.round(canvasCssW*dpr));
+    c.height = Math.max(1, Math.round(PAGE_HEIGHT_CSS*dpr));
+    c.style.top = (pageOffsets[i]||0) + 'px';
+    c.style.width = canvasCssW + 'px';
+    c.style.height = PAGE_HEIGHT_CSS + 'px';
+    pagesTrack.insertBefore(c, previewCanvas);
+    var ctx = c.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    pageInk[i] = { canvas:c, ctx:ctx, next:0, done:false };
+    queueRender(i);
+  }
+  function queueRender(i){ if(renderQueue.indexOf(i)===-1) renderQueue.push(i); scheduleRender(); }
+  function scheduleRender(){ if(!renderRaf) renderRaf = requestAnimationFrame(pumpRender); }
+  function drawStrokeLocal(ctx, stroke){ ctx.save(); clipToPage(ctx); drawFullStroke(ctx, stroke); ctx.restore(); }
+  function pumpRender(){
+    renderRaf = 0;
+    if(!activeNote){ renderQueue = []; return; }
+    renderQueue.sort(function(a,b){ return Math.abs(a-visiblePageIndex) - Math.abs(b-visiblePageIndex); });
+    var t0 = performance.now();
+    while(renderQueue.length){
+      var i = renderQueue[0], pi = pageInk[i], pg = activeNote.pages[i];
+      if(!pi || !pg || pi.done){ renderQueue.shift(); continue; }
+      var strokes = pg.strokes;
+      while(pi.next < strokes.length){
+        drawStrokeLocal(pi.ctx, strokes[pi.next++]);
+        if((pi.next & 3)===0 && performance.now()-t0 > RENDER_BUDGET_MS) break;
+      }
+      if(pi.next >= strokes.length){ pi.done = true; renderQueue.shift(); }
+      if(performance.now()-t0 > RENDER_BUDGET_MS) break;
+    }
+    if(renderQueue.length) scheduleRender();
+  }
+  function flushRender(){
+    if(renderRaf){ cancelAnimationFrame(renderRaf); renderRaf = 0; }
+    var saved = RENDER_BUDGET_MS; RENDER_BUDGET_MS = 1e9;
+    try{ pumpRender(); } finally { RENDER_BUDGET_MS = saved; }
+  }
+  // Crea i canvas mancanti e toglie quelli fuori dalla finestra [newStart .. newStart+WINDOW_PAGES-1].
   function applyCanvasWindow(newStart){
     if(!activeNote || !activeNote.pages.length) return;
     windowStart = Math.max(0, Math.min(newStart, activeNote.pages.length-1));
-    canvasOffsetCss = pageOffsets[windowStart] || 0;
     var endIdx = Math.min(activeNote.pages.length-1, windowStart + WINDOW_PAGES - 1);
-    var windowHeightCss = Math.max(PAGE_HEIGHT_CSS, ((pageOffsets[endIdx]||0) + PAGE_HEIGHT_CSS) - canvasOffsetCss);
-    [inkCanvas, previewCanvas].forEach(function(c){
-      c.style.top = canvasOffsetCss + 'px';
-      c.width = Math.max(1, Math.round(canvasCssW*dpr));
-      c.height = Math.max(1, Math.round(windowHeightCss*dpr));
-      c.style.width = canvasCssW+'px';
-      c.style.height = windowHeightCss+'px';
-    });
-    inkCtx.setTransform(dpr,0,0,dpr,0,0);
-    previewCtx.setTransform(dpr,0,0,dpr,0,0);
-    redrawAllPages();
+    Object.keys(pageInk).forEach(function(k){ var n = +k; if(n < windowStart || n > endIdx || n >= activeNote.pages.length) releasePageInk(n); });
+    for(var i=windowStart; i<=endIdx; i++){ if(!pageInk[i]) createPageInk(i); }
   }
-  // Se la pagina visibile si avvicina troppo al bordo della finestra attuale, la ricentra.
-  // Non si sposta mai mentre si sta effettivamente disegnando (si aspetta che la penna si sollevi),
-  // per non spostare/ridisegnare il canvas sotto un tratto in corso.
+  // Se la pagina visibile non è più al centro della finestra, la ricentra (mai durante un tratto).
   function maybeShiftWindow(){
     if(!activeNote || drawing) return;
-    var margin = 1;
-    var windowEnd = Math.min(activeNote.pages.length-1, windowStart + WINDOW_PAGES - 1);
-    if(visiblePageIndex < windowStart + margin || visiblePageIndex > windowEnd - margin){
-      applyCanvasWindow(computeWindowStart(visiblePageIndex, activeNote.pages.length));
-    }
+    var want = computeWindowStart(visiblePageIndex, activeNote.pages.length);
+    if(want !== windowStart) applyCanvasWindow(want);
+  }
+  function sizePreviewCanvas(){
+    previewCanvas.width = Math.max(1, Math.round(canvasCssW*dpr));
+    previewCanvas.height = Math.max(1, Math.round(PAGE_HEIGHT_CSS*dpr));
+    previewCanvas.style.width = canvasCssW + 'px';
+    previewCanvas.style.height = PAGE_HEIGHT_CSS + 'px';
+    previewCtx.setTransform(dpr,0,0,dpr,0,0);
   }
   function buildPagesLayout(preserveScroll){
     if(!activeNote) return;
@@ -769,30 +864,41 @@
     canvasCssW = Math.max(1, canvasOuter.clientWidth);
     dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     pagesTrack.style.height = trackHeightCss + 'px';
-    // ricrea le "bande" di sfondo (rimuove tutto tranne le due canvas, che restano gli stessi nodi)
+    releaseAllPageInk();
+    sizePreviewCanvas();
+    // ricrea le "bande" di sfondo (le canvas dei tratti sono già state tolte qui sopra)
     Array.prototype.slice.call(pagesTrack.querySelectorAll('.page-band')).forEach(function(el){ el.remove(); });
-    activeNote.pages.forEach(function(p, i){
-      var band = document.createElement('div');
-      band.className = 'page-band bg-' + (p.bg||'lined');
-      band.setAttribute('data-page-index', i);
-      band.style.top = pageOffsets[i] + 'px';
-      band.style.height = PAGE_HEIGHT_CSS + 'px';
-      var num = document.createElement('div');
-      num.className = 'page-number';
-      num.textContent = 'Pagina ' + (i+1);
-      band.appendChild(num);
-      pagesTrack.insertBefore(band, inkCanvas);
-    });
+    activeNote.pages.forEach(function(p, i){ pagesTrack.insertBefore(makeBand(p, i), previewCanvas); });
     applyCanvasWindow(computeWindowStart(visiblePageIndex, activeNote.pages.length));
     if(preserveScroll && prevScrollTop!==null) canvasOuter.scrollTop = prevScrollTop;
     updateVisiblePageIndex();
     updatePageNav();
     updateBgButtons();
   }
+  function makeBand(p, i){
+    var band = document.createElement('div');
+    band.className = 'page-band bg-' + (p.bg||'lined');
+    band.setAttribute('data-page-index', i);
+    band.style.top = pageOffsets[i] + 'px';
+    band.style.height = PAGE_HEIGHT_CSS + 'px';
+    var num = document.createElement('div');
+    num.className = 'page-number';
+    num.textContent = 'Pagina ' + (i+1);
+    band.appendChild(num);
+    return band;
+  }
+  // Aggiunge solo l'ultima pagina in fondo senza toccare i canvas già disegnati (usata dall'aggiunta automatica).
+  function appendLastPageBand(){
+    computeOffsets();
+    pagesTrack.style.height = trackHeightCss + 'px';
+    var i = activeNote.pages.length-1;
+    pagesTrack.insertBefore(makeBand(activeNote.pages[i], i), previewCanvas);
+    updatePageNav();
+    maybeShiftWindow();
+  }
   function updateBandBg(idx, bg){
     var band = pagesTrack.querySelector('.page-band[data-page-index="'+idx+'"]');
-    if(band){ band.className = 'page-band bg-' + bg; band.setAttribute('data-page-index', idx);
-      var num = document.createElement('div'); num.className='page-number'; num.textContent='Pagina '+(idx+1); band.appendChild(num); }
+    if(band){ band.className = 'page-band bg-' + bg; band.setAttribute('data-page-index', idx); }
   }
 
   /* ===================== DISEGNO ===================== */
@@ -868,7 +974,25 @@
     ctx.closePath();
     ctx.fill();
   }
+  function shapePath(ctx, kind, x1, y1, x2, y2){
+    var l = Math.min(x1,x2), r = Math.max(x1,x2), t = Math.min(y1,y2), b = Math.max(y1,y2), cx = (l+r)/2, cy = (t+b)/2;
+    ctx.beginPath();
+    if(kind==='rect') ctx.rect(l, t, r-l, b-t);
+    else if(kind==='triangle'){ ctx.moveTo(cx,t); ctx.lineTo(r,b); ctx.lineTo(l,b); ctx.closePath(); }
+    else if(kind==='diamond'){ ctx.moveTo(cx,t); ctx.lineTo(r,cy); ctx.lineTo(cx,b); ctx.lineTo(l,cy); ctx.closePath(); }
+    else ctx.ellipse(cx, cy, Math.max(0.5,(r-l)/2), Math.max(0.5,(b-t)/2), 0, 0, Math.PI*2);
+  }
   function drawFullStroke(destCtx, stroke){
+    if(stroke.type==='shape'){
+      destCtx.save();
+      destCtx.lineCap='round'; destCtx.lineJoin='round';
+      destCtx.globalCompositeOperation='source-over';
+      destCtx.strokeStyle = stroke.color; destCtx.globalAlpha = 1; destCtx.lineWidth = stroke.width;
+      shapePath(destCtx, stroke.shape, stroke.x1, stroke.y1, stroke.x2, stroke.y2);
+      destCtx.stroke();
+      destCtx.restore();
+      return;
+    }
     if(stroke.type==='line'){
       destCtx.save();
       destCtx.lineCap='round';
@@ -877,8 +1001,15 @@
       destCtx.fillStyle = stroke.color;
       destCtx.globalAlpha = 1;
       destCtx.lineWidth = stroke.width;
-      destCtx.beginPath(); destCtx.moveTo(stroke.x1, stroke.y1); destCtx.lineTo(stroke.x2, stroke.y2); destCtx.stroke();
-      if(stroke.arrow) drawArrowHead(destCtx, stroke.x1, stroke.y1, stroke.x2, stroke.y2, stroke.width);
+      var curved = (typeof stroke.cx==='number' && typeof stroke.cy==='number');
+      destCtx.beginPath(); destCtx.moveTo(stroke.x1, stroke.y1);
+      if(curved) destCtx.quadraticCurveTo(stroke.cx, stroke.cy, stroke.x2, stroke.y2); else destCtx.lineTo(stroke.x2, stroke.y2);
+      destCtx.stroke();
+      if(stroke.arrow){
+        // su una curva la punta segue la direzione con cui il tratto arriva all'estremo
+        if(curved && Math.hypot(stroke.x2-stroke.cx, stroke.y2-stroke.cy) > 1) drawArrowHead(destCtx, stroke.cx, stroke.cy, stroke.x2, stroke.y2, stroke.width);
+        else drawArrowHead(destCtx, stroke.x1, stroke.y1, stroke.x2, stroke.y2, stroke.width);
+      }
       destCtx.restore();
       return;
     }
@@ -930,47 +1061,28 @@
      veniva riapplicato DOPO tutto il resto di quella pagina, mangiando anche ciò che era stato
      scritto più tardi, e si "spostava" insieme alla pagina quando la si riordinava. */
   function clipToPage(ctx){ ctx.beginPath(); ctx.rect(0, 0, canvasCssW, PAGE_HEIGHT_CSS); ctx.clip(); }
-  function drawStrokeAtPage(ctx, stroke, pageIdx){
-    ctx.save(); ctx.translate(0, (pageOffsets[pageIdx]||0) - canvasOffsetCss); clipToPage(ctx); drawFullStroke(ctx, stroke); ctx.restore();
+  // Disegna un tratto sul canvas della sua pagina (coordinate locali alla pagina).
+  function paintOnPage(pageIdx, stroke){
+    var pi = pageInk[pageIdx]; if(!pi) return;
+    if(!pi.done) flushRender();
+    drawStrokeLocal(pi.ctx, stroke);
   }
-  function liveDrawAtPage(ctx, stroke, pageIdx, forceOpaque){
-    ctx.save(); ctx.translate(0, (pageOffsets[pageIdx]||0) - canvasOffsetCss); clipToPage(ctx); appendPointAndDraw(ctx, stroke, forceOpaque); ctx.restore();
+  function liveDraw(ctx, stroke, forceOpaque){
+    ctx.save(); clipToPage(ctx); appendPointAndDraw(ctx, stroke, forceOpaque); ctx.restore();
   }
-
-  // Nonostante il nome (rimasto per toccare meno codice possibile), ridisegna solo le pagine
-  // attualmente nella finestra [windowStart .. windowStart+WINDOW_PAGES-1], non tutta la nota.
-  function redrawAllPages(){
-    inkCtx.save();
-    inkCtx.setTransform(1,0,0,1,0,0);
-    inkCtx.clearRect(0,0,inkCanvas.width, inkCanvas.height);
-    inkCtx.restore();
-    inkCtx.setTransform(dpr,0,0,dpr,0,0);
-    if(!activeNote) return;
-    var endIdx = Math.min(activeNote.pages.length-1, windowStart + WINDOW_PAGES - 1);
-    for(var i=windowStart; i<=endIdx; i++){
-      var p = activeNote.pages[i];
-      for(var j=0;j<p.strokes.length;j++) drawStrokeAtPage(inkCtx, p.strokes[j], i);
-    }
-  }
-  // Ridisegna SOLO la pagina indicata, pulendo e ridisegnando unicamente la sua fascia verticale
-  // di canvas, invece di tutta la finestra (che può contenere altre pagine altrettanto piene).
-  // Per note molto dense, ridisegnare migliaia di tratti di pagine NON toccate ogni volta che si
-  // annulla un singolo tratto non è solo uno spreco: con decine di evidenziatori e migliaia di
-  // tratti nella stessa finestra, il carico combinato poteva far fallire silenziosamente il disegno
-  // di alcuni tratti durante il ridisegno completo, facendoli sembrare "scomparsi" pur restando
-  // intatti nei dati salvati. Operazioni come Annulla, che toccano una sola pagina alla volta,
-  // ora si limitano a quella pagina.
+  // Ridisegna SOLO la pagina indicata (Annulla, Svuota pagina...).
   function redrawSinglePage(pageIdx){
     if(!activeNote) return;
-    var p = activeNote.pages[pageIdx];
-    if(!p) return;
-    var yTop = (pageOffsets[pageIdx]||0) - canvasOffsetCss;
-    inkCtx.save();
-    inkCtx.setTransform(dpr,0,0,dpr,0,0);
-    inkCtx.clearRect(0, yTop, canvasCssW, PAGE_HEIGHT_CSS);
-    inkCtx.restore();
-    inkCtx.setTransform(dpr,0,0,dpr,0,0);
-    for(var j=0;j<p.strokes.length;j++) drawStrokeAtPage(inkCtx, p.strokes[j], pageIdx);
+    var p = activeNote.pages[pageIdx], pi = pageInk[pageIdx];
+    if(!p || !pi) return;
+    var q = renderQueue.indexOf(pageIdx); if(q!==-1) renderQueue.splice(q,1);
+    pi.ctx.save();
+    pi.ctx.setTransform(1,0,0,1,0,0);
+    pi.ctx.clearRect(0,0,pi.canvas.width, pi.canvas.height);
+    pi.ctx.restore();
+    pi.ctx.setTransform(dpr,0,0,dpr,0,0);
+    for(var j=0;j<p.strokes.length;j++) drawStrokeLocal(pi.ctx, p.strokes[j]);
+    pi.next = p.strokes.length; pi.done = true;
   }
   function clearPreview(){
     previewCtx.save();
@@ -979,6 +1091,8 @@
     previewCtx.restore();
     previewCtx.setTransform(dpr,0,0,dpr,0,0);
   }
+  function showPreviewForPage(i){ previewCanvas.style.top = (pageOffsets[i]||0) + 'px'; previewCanvas.style.display = 'block'; }
+  function hidePreview(){ clearPreview(); previewCanvas.style.display = 'none'; }
 
   function drawPaperPattern(ctx, w, h, bg){
     ctx.save();
@@ -1035,38 +1149,68 @@
   }
 
   /* ===================== TOOL / COLOR UI ===================== */
+  /* Il selettore colore nativo NON deve mai essere ricreato mentre è aperto: farlo lo chiude subito
+     (era questo il difetto). Lo si crea una volta sola e i pallini attorno si aggiornano "sul posto". */
+  var customLabel = null, customInput = null;
+  function isHex(c){ return /^#[0-9a-fA-F]{6}$/.test(c||''); }
+  function currentToolColor(){ return (state.ui.tool==='highlighter') ? state.ui.hlColor : state.ui.penColor; }
+  function markActiveSwatches(){
+    var cur = String(currentToolColor()).toLowerCase(), found = false;
+    Array.prototype.forEach.call(colorPanel.querySelectorAll('.swatch[data-color]'), function(s){
+      var on = s.getAttribute('data-color').toLowerCase()===cur; if(on) found = true;
+      s.classList.toggle('active', on);
+    });
+    if(customLabel){
+      customLabel.classList.toggle('active', !found);
+      customLabel.style.background = found ? '' : cur;
+      if(!found && isHex(cur) && customInput.value !== cur) customInput.value = cur;
+    }
+  }
+  function rememberCustomColor(c){
+    if(!isHex(c)) return;
+    var all = PEN_COLORS.concat(HL_COLORS).map(function(x){ return x.toLowerCase(); });
+    if(all.indexOf(c.toLowerCase())!==-1) return;
+    var list = (state.ui.customColors||[]).filter(function(x){ return x.toLowerCase()!==c.toLowerCase(); });
+    list.unshift(c); state.ui.customColors = list.slice(0,6);
+    scheduleSync({light:true});
+  }
+  function ensureCustomPicker(){
+    if(customLabel) return;
+    customLabel = document.createElement('label');
+    customLabel.className = 'swatch swatch-custom';
+    customLabel.title = 'Altro colore\u2026';
+    customInput = document.createElement('input');
+    customInput.type = 'color'; customInput.value = '#1c1c1c';
+    customInput.addEventListener('input', function(){
+      if(state.ui.tool==='highlighter') state.ui.hlColor = customInput.value; else state.ui.penColor = customInput.value;
+      markActiveSwatches();
+      scheduleSync({light:true});
+    });
+    customInput.addEventListener('change', function(){ rememberCustomColor(customInput.value); buildSwatches(); });
+    customLabel.appendChild(customInput);
+  }
   function buildSwatches(){
-    colorPanel.innerHTML = '';
-    var tool = state.ui.tool;
-    if(tool==='eraser') return;
-    var isHl = (tool==='highlighter');
-    var colors = isHl ? HL_COLORS : PEN_COLORS;
-    var current = isHl ? state.ui.hlColor : state.ui.penColor;
+    ensureCustomPicker();
+    var tool = state.ui.tool, isHl = (tool==='highlighter');
+    // toglie solo i pallini (mai il selettore nativo)
+    Array.prototype.slice.call(colorPanel.children).forEach(function(ch){ if(ch!==customLabel) colorPanel.removeChild(ch); });
+    if(!customLabel.parentNode) colorPanel.appendChild(customLabel);
+    if(tool==='eraser'){ customLabel.style.display = 'none'; return; }
+    customLabel.style.display = '';
+    var colors = (isHl ? HL_COLORS : PEN_COLORS).concat(isHl ? [] : (state.ui.customColors||[]));
     colors.forEach(function(c){
       var b = document.createElement('button');
-      b.className = 'swatch' + (c.toLowerCase()===String(current).toLowerCase() ? ' active' : '');
-      b.style.background = c;
-      b.title = c;
+      b.className = 'swatch'; b.setAttribute('data-color', c);
+      b.style.background = c; b.title = c;
       b.addEventListener('click', function(){
-        if(isHl) state.ui.hlColor = c; else state.ui.penColor = c;
-        scheduleSync();
-        buildSwatches();
+        if(state.ui.tool==='highlighter') state.ui.hlColor = c; else state.ui.penColor = c;
+        markActiveSwatches();
+        scheduleSync({light:true});
       });
-      colorPanel.appendChild(b);
+      colorPanel.insertBefore(b, customLabel);
     });
-    var label = document.createElement('label');
-    label.className = 'swatch swatch-custom';
-    label.title = 'Colore personalizzato';
-    var inp = document.createElement('input');
-    inp.type = 'color';
-    inp.value = /^#[0-9a-fA-F]{6}$/.test(current) ? current : '#1c1c1c';
-    inp.addEventListener('input', function(){
-      if(isHl) state.ui.hlColor = inp.value; else state.ui.penColor = inp.value;
-      scheduleSync();
-      buildSwatches();
-    });
-    label.appendChild(inp);
-    colorPanel.appendChild(label);
+    if(isHex(currentToolColor())) customInput.value = currentToolColor();
+    markActiveSwatches();
   }
   function setTool(tool){
     state.ui.tool = tool;
@@ -1075,16 +1219,22 @@
     syncSizeCompactDot();
     previewCanvas.style.opacity = (tool==='highlighter') ? '0.42' : '1';
     arrowToggle.style.display = (tool==='underline') ? 'flex' : 'none';
+    shapeGroup.style.display = (tool==='shape') ? 'flex' : 'none';
     arrowToggle.classList.toggle('active', !!state.ui.lineArrow);
     buildSwatches();
-    scheduleSync();
+    scheduleSync({light:true});
   }
   document.querySelectorAll('.tool-btn').forEach(function(b){ b.addEventListener('click', function(){ setTool(b.getAttribute('data-tool')); }); });
-  sizeSlider.addEventListener('input', function(){ state.ui.sizes[state.ui.tool] = parseInt(sizeSlider.value,10); syncSizeCompactDot(); scheduleSync(); });
+  sizeSlider.addEventListener('input', function(){ state.ui.sizes[state.ui.tool] = parseInt(sizeSlider.value,10); syncSizeCompactDot(); scheduleSync({light:true}); });
+  function markShapeButtons(){ Array.prototype.forEach.call(shapeGroup.querySelectorAll('.shape-btn'), function(b){ b.classList.toggle('active', b.getAttribute('data-shape')===state.ui.shapeKind); }); }
+  Array.prototype.forEach.call(shapeGroup.querySelectorAll('.shape-btn'), function(b){
+    b.addEventListener('click', function(){ state.ui.shapeKind = b.getAttribute('data-shape'); markShapeButtons(); scheduleSync({light:true}); });
+  });
+  markShapeButtons();
   arrowToggle.addEventListener('click', function(){
     state.ui.lineArrow = !state.ui.lineArrow;
     arrowToggle.classList.toggle('active', state.ui.lineArrow);
-    scheduleSync();
+    scheduleSync({light:true});
   });
   bgStyleGroup.querySelectorAll('.bg-opt').forEach(function(b){
     b.addEventListener('click', function(){
@@ -1107,15 +1257,60 @@
   /* ===================== INPUT PENNA/MOUSE — SCROLL CON IL DITO ===================== */
   var drawing = false;
   var activeStroke = null;
-  var lineStart = null, lineEnd = null;
+  var lineStart = null, lineEnd = null, linePath = [];
   var lastPenTs = 0;
 
-  // Il canvas ora comincia a "canvasOffsetCss" invece che in cima alla nota: si aggiunge quell'offset
-  // per continuare a ragionare in coordinate assolute (uguali per tutta la nota), come prima.
-  function getPos(e){ var rect = previewCanvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: (e.clientY - rect.top) + canvasOffsetCss }; }
+  // Coordinate assolute dentro la nota (la "pista" parte dalla cima della prima pagina).
+  function getPos(e){ var rect = pagesTrack.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
   function widthForLine(setting){ return 1.4 + setting*0.55; }
+  /* Riga: se la penna disegna un percorso curvo, si adatta una curva (quadratica) liscia che parte dal
+     punto iniziale e arriva al punto finale; la curvatura la decidi tu col modo in cui muovi la penna.
+     Se il percorso è quasi dritto resta una riga dritta (con aggancio a orizzontale/verticale). */
+  function fitQuadCurve(path){
+    var n = path.length; if(n < 4) return null;
+    var A = path[0], B = path[n-1], dx = B.x-A.x, dy = B.y-A.y, L = Math.sqrt(dx*dx+dy*dy);
+    if(L < 12) return null;
+    var maxDev = 0, i;
+    for(i=1;i<n-1;i++){ var d = Math.abs((path[i].x-A.x)*dy - (path[i].y-A.y)*dx) / L; if(d > maxDev) maxDev = d; }
+    if(maxDev < Math.max(7, 0.06*L)) return null;
+    var cum = [0]; for(i=1;i<n;i++) cum.push(cum[i-1] + Math.hypot(path[i].x-path[i-1].x, path[i].y-path[i-1].y));
+    var total = cum[n-1]; if(total < 1) return null;
+    var sw = 0, sx = 0, sy = 0;
+    for(i=1;i<n-1;i++){
+      var t = cum[i]/total, w = 2*t*(1-t), u = (1-t)*(1-t), v = t*t;
+      sw += w*w; sx += w*(path[i].x - u*A.x - v*B.x); sy += w*(path[i].y - u*A.y - v*B.y);
+    }
+    if(sw < 1e-6) return null;
+    return { cx: sx/sw, cy: sy/sw };
+  }
+  function buildLineStroke(){
+    if(!linePath.length) return null;
+    var A = linePath[0], B = linePath[linePath.length-1];
+    if(Math.abs(B.x-A.x) <= 1 && Math.abs(B.y-A.y) <= 1) return null;
+    var s = { type:'line', color: state.ui.penColor, width: widthForLine(state.ui.sizes.underline||3),
+              x1: round1(A.x), y1: round1(A.y), x2: round1(B.x), y2: round1(B.y), arrow: !!state.ui.lineArrow };
+    var c = fitQuadCurve(linePath);
+    if(c){ s.cx = round1(c.cx); s.cy = round1(c.cy); return s; }
+    var ang = Math.atan2(B.y-A.y, B.x-A.x) * 180 / Math.PI, norm = ((ang % 360) + 360) % 360;
+    var near = function(t){ var d = Math.abs(norm-t); return d<7 || d>353; };
+    if(near(0) || near(180)) s.y2 = s.y1; else if(near(90) || near(270)) s.x2 = s.x1;
+    return s;
+  }
+  /* Forme: si trascina da un angolo all'angolo opposto. Se le due misure sono quasi uguali (entro ~12%)
+     la forma diventa perfetta: cerchio o quadrato. */
+  function buildShapeStroke(){
+    if(!linePath.length) return null;
+    var A = linePath[0], B = linePath[linePath.length-1];
+    var dx = B.x-A.x, dy = B.y-A.y, ax = Math.abs(dx), ay = Math.abs(dy);
+    if(ax < 4 && ay < 4) return null;
+    var big = Math.max(ax, ay);
+    if(big > 0 && Math.abs(ax-ay) < 0.12*big){ var sz = (ax+ay)/2; dx = (dx<0?-1:1)*sz; dy = (dy<0?-1:1)*sz; }
+    return { type:'shape', shape: state.ui.shapeKind || 'ellipse', color: state.ui.penColor,
+             width: widthForLine(state.ui.sizes.shape||3),
+             x1: round1(A.x), y1: round1(A.y), x2: round1(A.x+dx), y2: round1(A.y+dy) };
+  }
 
-  previewCanvas.addEventListener('pointerdown', function(e){
+  inputLayer.addEventListener('pointerdown', function(e){
     if(!activeNote) return;
     if(e.pointerType==='touch') return; // il tocco (anche il palmo appoggiato mentre si scrive con la penna) non deve
                                          // disegnare né far scorrere la pagina: si scorre con rotellina/trackpad,
@@ -1123,13 +1318,15 @@
     if(typeof e.button==='number' && e.button>0) return;
     e.preventDefault();
     drawing = true;
-    try{ previewCanvas.setPointerCapture(e.pointerId); }catch(err){}
+    try{ inputLayer.setPointerCapture(e.pointerId); }catch(err){}
     var pos = getPos(e);
     drawingPageIndex = pageIndexAtY(pos.y);
+    flushRender(); // completa i disegni in sospeso: l'ordine dei tratti deve restare quello vero
+    showPreviewForPage(drawingPageIndex);
     var localY = pos.y - (pageOffsets[drawingPageIndex]||0);
     var pressure = (e.pointerType==='mouse') ? 0.5 : ((e.pressure>0) ? e.pressure : 0.5);
-    if(state.ui.tool==='underline'){
-      lineStart = {x:pos.x, y:localY}; lineEnd = lineStart;
+    if(state.ui.tool==='underline' || state.ui.tool==='shape'){
+      lineStart = {x:pos.x, y:localY}; lineEnd = lineStart; linePath = [lineStart];
     } else {
       var tool = state.ui.tool;
       var color = (tool==='highlighter') ? state.ui.hlColor : state.ui.penColor;
@@ -1143,38 +1340,22 @@
     }
   });
 
-  previewCanvas.addEventListener('pointermove', function(e){
+  inputLayer.addEventListener('pointermove', function(e){
     if(!drawing || !activeNote) return;
     if(e.pointerType==='touch') return;
     e.preventDefault();
     var pos = getPos(e);
     var localY = pos.y - (pageOffsets[drawingPageIndex]||0);
-    if(state.ui.tool==='underline'){
-      var x2 = pos.x, y2 = localY;
-      var dx = x2-lineStart.x, dy = y2-lineStart.y;
-      var ang = Math.atan2(dy,dx) * 180 / Math.PI;
-      var norm = ((ang % 360) + 360) % 360;
-      var nearAngle = function(t){ var d = Math.abs(norm-t); return d<7 || d>353; };
-      if(nearAngle(0) || nearAngle(180)) y2 = lineStart.y;
-      else if(nearAngle(90) || nearAngle(270)) x2 = lineStart.x;
-      lineEnd = { x:x2, y:y2 };
-      var lw = widthForLine(state.ui.sizes.underline||3);
+    if(state.ui.tool==='underline' || state.ui.tool==='shape'){
+      linePath.push({ x:pos.x, y:localY });
+      var pv = (state.ui.tool==='underline') ? buildLineStroke() : buildShapeStroke();
       clearPreview();
-      previewCtx.save();
-      previewCtx.translate(0, pageOffsets[drawingPageIndex]||0);
-      previewCtx.lineCap='round';
-      previewCtx.strokeStyle = state.ui.penColor;
-      previewCtx.fillStyle = state.ui.penColor;
-      previewCtx.globalAlpha = 1;
-      previewCtx.lineWidth = lw;
-      previewCtx.beginPath(); previewCtx.moveTo(lineStart.x, lineStart.y); previewCtx.lineTo(lineEnd.x, lineEnd.y); previewCtx.stroke();
-      if(state.ui.lineArrow) drawArrowHead(previewCtx, lineStart.x, lineStart.y, lineEnd.x, lineEnd.y, lw);
-      previewCtx.restore();
+      if(pv) drawFullStroke(previewCtx, pv);
     } else if(activeStroke){
       var pressure = (e.pointerType==='mouse') ? 0.5 : ((e.pressure>0) ? e.pressure : 0.5);
       activeStroke.points.push({ x: round1(pos.x), y: round1(localY), p: round2(pressure) });
-      if(activeStroke.type==='highlighter') liveDrawAtPage(previewCtx, activeStroke, drawingPageIndex, true);
-      else liveDrawAtPage(inkCtx, activeStroke, drawingPageIndex, false);
+      if(activeStroke.type==='highlighter') liveDraw(previewCtx, activeStroke, true);
+      else if(pageInk[drawingPageIndex]) liveDraw(pageInk[drawingPageIndex].ctx, activeStroke, false);
     }
   });
 
@@ -1199,28 +1380,24 @@
     activeNote.updatedAt = Date.now();
     updateUndoRedoButtons();
     updateDateLabel();
-    scheduleSync();
+    scheduleSync({noThumb: pageIdx!==0});
   }
   function finishStroke(){
     if(!drawing) return;
     drawing = false;
-    if(state.ui.tool==='underline'){
-      if(lineStart && lineEnd && (Math.abs(lineEnd.x-lineStart.x) > 1 || Math.abs(lineEnd.y-lineStart.y) > 1)){
-        var strokeObj = {
-          type:'line', color: state.ui.penColor, width: widthForLine(state.ui.sizes.underline||3),
-          x1: round1(lineStart.x), y1: round1(lineStart.y), x2: round1(lineEnd.x), y2: round1(lineEnd.y),
-          arrow: !!state.ui.lineArrow
-        };
-        drawStrokeAtPage(inkCtx, strokeObj, drawingPageIndex);
+    if(state.ui.tool==='underline' || state.ui.tool==='shape'){
+      var strokeObj = (state.ui.tool==='underline') ? buildLineStroke() : buildShapeStroke();
+      if(strokeObj){
+        paintOnPage(drawingPageIndex, strokeObj);
         commitStroke(drawingPageIndex, strokeObj);
       }
-      clearPreview();
-      lineStart=null; lineEnd=null;
+      hidePreview();
+      lineStart = null; lineEnd = null; linePath = [];
     } else if(activeStroke){
       if(activeStroke.points.length===1 || activeStroke.type==='highlighter'){
-        drawStrokeAtPage(inkCtx, activeStroke, drawingPageIndex);
+        paintOnPage(drawingPageIndex, activeStroke);
       }
-      clearPreview();
+      hidePreview();
       commitStroke(drawingPageIndex, activeStroke);
       activeStroke = null;
     }
@@ -1245,7 +1422,7 @@
     redrawSinglePage(visiblePageIndex);
     activeNote.updatedAt = Date.now();
     updateUndoRedoButtons();
-    scheduleSync();
+    scheduleSync({noThumb: visiblePageIndex!==0});
   });
   redoBtn.addEventListener('click', function(){
     if(!activeNote) return;
@@ -1253,11 +1430,11 @@
     if(!h || !h.future.length) return;
     var entry = h.future.pop();
     activeNote.pages[visiblePageIndex].strokes.push(entry.stroke);
-    drawStrokeAtPage(inkCtx, entry.stroke, visiblePageIndex);
+    paintOnPage(visiblePageIndex, entry.stroke);
     h.past.push(entry);
     activeNote.updatedAt = Date.now();
     updateUndoRedoButtons();
-    scheduleSync();
+    scheduleSync({noThumb: visiblePageIndex!==0});
   });
 
   /* ===================== SCORRIMENTO: pagina visibile + aggiunta automatica ===================== */
@@ -1282,7 +1459,7 @@
       updatePageNav();
       updateBgButtons();
       updateUndoRedoButtons();
-      scheduleSync();
+      scheduleSync({light:true}); // solo preferenze: la nota si riscrive quando c'è davvero qualcosa di nuovo
     }
     maybeShiftWindow();
   }
@@ -1293,8 +1470,8 @@
     var scrollBottom = canvasOuter.scrollTop + canvasOuter.clientHeight;
     if((trackHeightCss - scrollBottom) < PAGE_HEIGHT_CSS*0.6){
       activeNote.pages.push(freshPageWithBg(activeNote.bg));
-      buildPagesLayout(true);
-      scheduleSync();
+      appendLastPageBand();
+      scheduleSync({noThumb:true});
     }
   }
 
@@ -1574,15 +1751,38 @@
       subjectPill.classList.add('empty');
     }
   }
+  function existingFolders(){
+    var seen = {}, out = [];
+    state.notes.forEach(function(n){ if(n.subject && !seen[n.subject]){ seen[n.subject] = 1; out.push(n.subject); } });
+    out.sort(function(a,b){ return a.localeCompare(b,'it'); });
+    return out;
+  }
+  function applySubject(val){
+    activeNote.subject = (val||'').slice(0,40);
+    activeNote.updatedAt = Date.now();
+    updateSubjectPill();
+    renderSidebarList();
+    scheduleSync({noThumb:true});
+  }
   subjectPill.addEventListener('click', function(){
     if(!activeNote) return;
-    showPrompt('Cartella per questa nota (es. \u00abEconomia\u00bb, \u00abAnno 2\u00bb) \u2014 lascia vuoto per nessuna:', activeNote.subject||'', function(val){
-      activeNote.subject = (val||'').slice(0,40);
-      activeNote.updatedAt = Date.now();
-      updateSubjectPill();
-      renderSidebarList();
-      scheduleSync();
-    });
+    modalMsg.innerHTML = '<div>Scegli la cartella per questa nota (un clic):</div><div id="folderChoices"></div>' +
+      '<div class="folder-new-label">Oppure scrivi il nome di una nuova cartella:</div><input type="text" id="modalPromptInput" maxlength="40" placeholder="Nuova cartella\u2026">';
+    var box = document.getElementById('folderChoices');
+    function addChip(label, value, color){
+      var b = document.createElement('button'); b.type = 'button';
+      b.className = 'folder-opt' + ((activeNote.subject||'')===value ? ' current' : '');
+      if(color){ var d = document.createElement('span'); d.className = 'subject-dot'; d.style.background = color; b.appendChild(d); }
+      b.appendChild(document.createTextNode(label));
+      b.addEventListener('click', function(){ hideConfirm(); applySubject(value); });
+      box.appendChild(b);
+    }
+    existingFolders().forEach(function(f){ addChip(f, f, subjectColor(f)); });
+    addChip('Nessuna cartella', '', null);
+    modalCancel.style.display = ''; modalCancel.textContent = 'Annulla';
+    modalConfirm.textContent = 'Crea e salva';
+    modalCb = function(){ var inp = document.getElementById('modalPromptInput'); var v = inp ? inp.value.trim() : ''; if(v) applySubject(v); };
+    modalOverlay.classList.add('show');
   });
   function updateFavBtn(){ if(activeNote) favBtn.classList.toggle('active', !!activeNote.favorite); }
   favBtn.addEventListener('click', function(){
@@ -1682,6 +1882,7 @@
   }
   function renderSidebarList(){
     var q = (searchInput.value||'').trim().toLowerCase();
+    var keepScroll = noteList.scrollTop;
     noteList.innerHTML = '';
     var showFlat = !!q || activeFilter==='__fav__';
     if(showFlat){
@@ -1690,6 +1891,7 @@
       if(q) items = items.filter(function(n){ return (n.title||'senza titolo').toLowerCase().indexOf(q)!==-1; });
       emptyState.style.display = items.length===0 ? 'flex' : 'none';
       items.forEach(function(n){ noteList.appendChild(buildNoteRow(n)); });
+      noteList.scrollTop = keepScroll;
       return;
     }
     // vista a cartelle: raggruppa per "subject", con "Senza cartella" in fondo
@@ -1720,6 +1922,7 @@
       notes.forEach(function(n){ det.appendChild(buildNoteRow(n)); });
       noteList.appendChild(det);
     });
+    noteList.scrollTop = keepScroll;
   }
   searchInput.addEventListener('input', renderSidebarList);
 
@@ -1801,7 +2004,7 @@
     sidebarCollapseBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     if(instant){ void sidebar.offsetWidth; document.body.classList.remove('no-anim'); relayoutSoon(0); }
     else relayoutSoon(280); // dopo l'animazione: la pagina si allarga/restringe
-    persist();
+    writeUiPrefs(); // è solo una preferenza dell'interfaccia: non serve riscrivere tutte le note
   }
   function toggleSidebar(){
     if(isMobileLayout()){
@@ -2060,11 +2263,12 @@
     function pushSoon(delay){
       if(!user) return;
       if(pushTimer) clearTimeout(pushTimer);
-      pushTimer = setTimeout(pushNow, delay==null ? 1500 : delay);
+      pushTimer = setTimeout(pushNow, delay==null ? 4000 : delay);
     }
     function pushNow(){
       pushTimer = null;
       if(!user || !firstSnapshotDone) return;
+      if(drawing){ pushSoon(1500); return; } // mai mentre si sta scrivendo
       if(pushing){ pushAgain = true; return; }
       var todo = state.notes.filter(needsPush);
       var tombs = Object.keys(meta.tomb);
@@ -2284,6 +2488,8 @@
   // salva subito se l'app viene chiusa o messa in secondo piano
   function flushNow(){
     if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; if(saveStatus) saveStatus.classList.remove('show'); }
+    if(uiTimer){ clearTimeout(uiTimer); uiTimer = null; }
+    if(activeNote && thumbPending){ updateThumb(activeNote); thumbPending = false; }
     persistLocal();
     if(cloud) cloud.pushSoon(0);
   }
