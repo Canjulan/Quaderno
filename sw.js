@@ -1,6 +1,6 @@
 /* Quaderno — service worker: fa funzionare l'app anche senza internet.
    Quando modifichi index.html, aumenta il numero di VERSION qui sotto. */
-var VERSION = 'quaderno-v25';
+var VERSION = 'quaderno-v26';
 var APP_SHELL = [
   './',
   './index.html',
