@@ -8,6 +8,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1B2438">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -255,6 +259,18 @@
   #arrowToggle span{ font-size:9px; font-weight:600; }
   #arrowToggle.active{ color:var(--ink-navy); background:var(--brass); border-color:var(--brass); }
 
+  #shapeMore{ background:none; border:1px solid rgba(255,255,255,0.14); color:var(--text-on-navy-dim); border-radius:8px; padding:3px 6px; cursor:pointer; display:flex; align-items:center; gap:4px; font:inherit; font-size:11px; }
+  #shapeMore:hover{ color:var(--text-on-navy); }
+  #shapeMore canvas{ width:22px; height:22px; }
+  #shapePop{ display:none; position:fixed; z-index:60; width:380px; max-width:calc(100vw - 16px); background:var(--ink-navy); border:1px solid rgba(255,255,255,0.14); border-radius:14px; padding:12px; box-shadow:0 12px 30px rgba(0,0,0,0.45); }
+  #shapeSearch{ width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); color:var(--text-on-navy); font:inherit; font-size:13px; }
+  #shapeCats{ display:flex; flex-wrap:wrap; gap:5px; margin:10px 0; }
+  #shapeGrid{ display:grid; grid-template-columns:repeat(6,1fr); gap:6px; max-height:260px; overflow-y:auto; padding:2px; }
+  .sp-cell{ aspect-ratio:1; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.04); cursor:pointer; padding:4px; display:flex; align-items:center; justify-content:center; }
+  .sp-cell canvas{ width:100%; height:100%; pointer-events:none; }
+  .sp-cell:hover{ background:rgba(255,255,255,0.14); }
+  .sp-cell.on{ background:var(--brass); border-color:var(--brass); }
+  #shapeEmpty{ color:var(--text-on-navy-dim); font-size:12px; padding:10px 2px; }
   #colorPanel{ display:flex; align-items:center; gap:6px; flex-wrap:nowrap; }
   .swatch{ width:24px; height:24px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0; position:relative; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.15); }
   .swatch.active{ border-color:var(--brass-soft); box-shadow:0 0 0 2px var(--ink-navy), 0 0 0 4px var(--brass); }
@@ -444,6 +460,7 @@
           <button class="shape-btn" data-shape="rect" title="Quadrato / rettangolo"><svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="13" rx="1"/></svg></button>
           <button class="shape-btn" data-shape="triangle" title="Triangolo"><svg viewBox="0 0 24 24"><polygon points="12,4.5 20.5,19 3.5,19"/></svg></button>
           <button class="shape-btn" data-shape="diamond" title="Rombo"><svg viewBox="0 0 24 24"><polygon points="12,3.5 20.5,12 12,20.5 3.5,12"/></svg></button>
+          <button id="shapeMore" type="button" title="Tutte le forme (con ricerca)"><canvas id="shapeMoreIcon" width="44" height="44"></canvas><span>Altre forme</span></button>
         </div>
         <button id="arrowToggle" title="Disegna come freccia (se curvi il tratto con la penna, la freccia si curva)"><svg><use href="#ic-arrow"/></svg><span>Freccia</span></button>
         <div class="divider"></div>
@@ -698,7 +715,7 @@
             state.ui.hlColor = parsed.ui.hlColor || state.ui.hlColor;
             state.ui.lineArrow = !!parsed.ui.lineArrow;
             if(parsed.ui.pos && typeof parsed.ui.pos==='object') state.ui.pos = parsed.ui.pos;
-            if(parsed.ui.shapeKind) state.ui.shapeKind = parsed.ui.shapeKind;
+            if(parsed.ui.shapeKind && /^[a-z0-9]+$/.test(parsed.ui.shapeKind)) state.ui.shapeKind = parsed.ui.shapeKind;
             state.ui.sidebarCollapsed = !!parsed.ui.sidebarCollapsed;
             state.ui.thumbFixVersion = parsed.ui.thumbFixVersion || 0;
             if(parsed.ui.sizes){ for(var k in state.ui.sizes){ if(parsed.ui.sizes[k]) state.ui.sizes[k] = parsed.ui.sizes[k]; } }
@@ -1038,13 +1055,94 @@
     ctx.closePath();
     ctx.fill();
   }
+  /* ===== Catalogo forme: ogni forma disegna il suo contorno in un riquadro (l,t,w,h) ===== */
+  function mkPoly(pts){ return function(c,l,t,w,h){ c.moveTo(l+pts[0]*w, t+pts[1]*h); for(var i=2;i<pts.length;i+=2) c.lineTo(l+pts[i]*w, t+pts[i+1]*h); c.closePath(); }; }
+  function mkRegular(n, rot){ return function(c,l,t,w,h){ for(var i=0;i<n;i++){ var a = rot + i*2*Math.PI/n, x = l+w*(0.5+0.5*Math.cos(a)), y = t+h*(0.5+0.5*Math.sin(a)); if(i) c.lineTo(x,y); else c.moveTo(x,y); } c.closePath(); }; }
+  function mkStar(n, inner){ return function(c,l,t,w,h){ for(var i=0;i<n*2;i++){ var a = -Math.PI/2 + i*Math.PI/n, r = (i%2) ? inner*0.5 : 0.5, x = l+w*(0.5+r*Math.cos(a)), y = t+h*(0.5+r*Math.sin(a)); if(i) c.lineTo(x,y); else c.moveTo(x,y); } c.closePath(); }; }
+  function rrect(c,l,t,w,h,r){ r = Math.min(r, w/2, h/2); c.moveTo(l+r,t); c.lineTo(l+w-r,t); c.arcTo(l+w,t,l+w,t+r,r); c.lineTo(l+w,t+h-r); c.arcTo(l+w,t+h,l+w-r,t+h,r); c.lineTo(l+r,t+h); c.arcTo(l,t+h,l,t+h-r,r); c.lineTo(l,t+r); c.arcTo(l,t,l+r,t,r); c.closePath(); }
+  function ell(c,cx,cy,rx,ry){ c.moveTo(cx+rx,cy); c.ellipse(cx,cy,Math.max(0.5,rx),Math.max(0.5,ry),0,0,Math.PI*2); }
+  var SHAPE_DEFS = [
+    {id:'ellipse', n:'Cerchio / ellisse', cat:'Base', kw:'cerchio ellisse ovale tondo', f:function(c,l,t,w,h){ ell(c,l+w/2,t+h/2,w/2,h/2); }},
+    {id:'rect', n:'Quadrato / rettangolo', cat:'Base', kw:'quadrato rettangolo box', f:function(c,l,t,w,h){ c.rect(l,t,w,h); }},
+    {id:'roundrect', n:'Rettangolo arrotondato', cat:'Base', kw:'rettangolo arrotondato bottone angoli tondi', f:function(c,l,t,w,h){ rrect(c,l,t,w,h,Math.min(w,h)*0.22); }},
+    {id:'triangle', n:'Triangolo', cat:'Base', kw:'triangolo', f:mkPoly([0.5,0, 1,1, 0,1])},
+    {id:'rtriangle', n:'Triangolo rettangolo', cat:'Base', kw:'triangolo rettangolo squadra', f:mkPoly([0,0, 1,1, 0,1])},
+    {id:'diamond', n:'Rombo', cat:'Base', kw:'rombo diamante', f:mkPoly([0.5,0, 1,0.5, 0.5,1, 0,0.5])},
+    {id:'parallelogram', n:'Parallelogramma', cat:'Base', kw:'parallelogramma', f:mkPoly([0.22,0, 1,0, 0.78,1, 0,1])},
+    {id:'trapezoid', n:'Trapezio', cat:'Base', kw:'trapezio', f:mkPoly([0.2,0, 0.8,0, 1,1, 0,1])},
+    {id:'semicircle', n:'Semicerchio', cat:'Base', kw:'semicerchio mezzo cerchio', f:function(c,l,t,w,h){ c.moveTo(l,t+h); c.ellipse(l+w/2,t+h,w/2,h,0,Math.PI,Math.PI*2); c.closePath(); }},
+    {id:'quarter', n:'Quarto di cerchio', cat:'Base', kw:'quarto cerchio settore', f:function(c,l,t,w,h){ c.moveTo(l,t+h); c.lineTo(l,t); c.ellipse(l,t+h,w,h,0,-Math.PI/2,0); c.closePath(); }},
+    {id:'ring', n:'Anello', cat:'Base', kw:'anello ciambella cerchio doppio donut', f:function(c,l,t,w,h){ ell(c,l+w/2,t+h/2,w/2,h/2); ell(c,l+w/2,t+h/2,w*0.3,h*0.3); }},
+    {id:'frame', n:'Cornice', cat:'Base', kw:'cornice riquadro doppio', f:function(c,l,t,w,h){ c.rect(l,t,w,h); c.rect(l+w*0.14,t+h*0.14,w*0.72,h*0.72); }},
+    {id:'pentagon', n:'Pentagono', cat:'Poligoni', kw:'pentagono 5 lati', f:mkRegular(5,-Math.PI/2)},
+    {id:'hexagon', n:'Esagono', cat:'Poligoni', kw:'esagono 6 lati', f:mkPoly([0.25,0, 0.75,0, 1,0.5, 0.75,1, 0.25,1, 0,0.5])},
+    {id:'heptagon', n:'Ettagono', cat:'Poligoni', kw:'ettagono eptagono 7 lati', f:mkRegular(7,-Math.PI/2)},
+    {id:'octagon', n:'Ottagono', cat:'Poligoni', kw:'ottagono 8 lati stop', f:mkRegular(8,Math.PI/8)},
+    {id:'decagon', n:'Decagono', cat:'Poligoni', kw:'decagono 10 lati', f:mkRegular(10,-Math.PI/2)},
+    {id:'dodecagon', n:'Dodecagono', cat:'Poligoni', kw:'dodecagono 12 lati', f:mkRegular(12,-Math.PI/2)},
+    {id:'cutrect', n:'Rettangolo smussato', cat:'Poligoni', kw:'rettangolo smussato angoli tagliati', f:mkPoly([0.15,0, 0.85,0, 1,0.2, 1,0.8, 0.85,1, 0.15,1, 0,0.8, 0,0.2])},
+    {id:'house', n:'Casetta', cat:'Poligoni', kw:'casa casetta home', f:mkPoly([0.5,0, 1,0.4, 1,1, 0,1, 0,0.4])},
+    {id:'star4', n:'Stella a 4 punte', cat:'Stelle', kw:'stella 4 punte scintilla', f:mkStar(4,0.38)},
+    {id:'star5', n:'Stella a 5 punte', cat:'Stelle', kw:'stella 5 punte', f:mkStar(5,0.4)},
+    {id:'star6', n:'Stella a 6 punte', cat:'Stelle', kw:'stella 6 punte david', f:mkStar(6,0.58)},
+    {id:'star8', n:'Stella a 8 punte', cat:'Stelle', kw:'stella 8 punte', f:mkStar(8,0.6)},
+    {id:'burst', n:'Esplosione', cat:'Stelle', kw:'esplosione sole raggi sigillo timbro', f:mkStar(12,0.75)},
+    {id:'badge', n:'Sigillo', cat:'Stelle', kw:'sigillo medaglia bollo', f:mkStar(20,0.9)},
+    {id:'arrowR', n:'Freccia destra', cat:'Frecce', kw:'freccia destra', f:mkPoly([0,0.3, 0.6,0.3, 0.6,0, 1,0.5, 0.6,1, 0.6,0.7, 0,0.7])},
+    {id:'arrowL', n:'Freccia sinistra', cat:'Frecce', kw:'freccia sinistra', f:mkPoly([1,0.3, 0.4,0.3, 0.4,0, 0,0.5, 0.4,1, 0.4,0.7, 1,0.7])},
+    {id:'arrowU', n:'Freccia su', cat:'Frecce', kw:'freccia su alto', f:mkPoly([0.3,1, 0.3,0.4, 0,0.4, 0.5,0, 1,0.4, 0.7,0.4, 0.7,1])},
+    {id:'arrowD', n:'Freccia giù', cat:'Frecce', kw:'freccia giu basso', f:mkPoly([0.3,0, 0.3,0.6, 0,0.6, 0.5,1, 1,0.6, 0.7,0.6, 0.7,0])},
+    {id:'arrowLR', n:'Freccia doppia orizzontale', cat:'Frecce', kw:'freccia doppia orizzontale bidirezionale', f:mkPoly([0,0.5, 0.25,0, 0.25,0.3, 0.75,0.3, 0.75,0, 1,0.5, 0.75,1, 0.75,0.7, 0.25,0.7, 0.25,1])},
+    {id:'arrowUD', n:'Freccia doppia verticale', cat:'Frecce', kw:'freccia doppia verticale bidirezionale', f:mkPoly([0.5,0, 1,0.25, 0.7,0.25, 0.7,0.75, 1,0.75, 0.5,1, 0,0.75, 0.3,0.75, 0.3,0.25, 0,0.25])},
+    {id:'chevron', n:'Chevron', cat:'Frecce', kw:'chevron freccia punta', f:mkPoly([0,0, 0.6,0, 1,0.5, 0.6,1, 0,1, 0.4,0.5])},
+    {id:'homeplate', n:'Pentagono freccia', cat:'Frecce', kw:'pentagono freccia processo passo', f:mkPoly([0,0, 0.7,0, 1,0.5, 0.7,1, 0,1])},
+    {id:'arrow4', n:'Freccia a 4 direzioni', cat:'Frecce', kw:'freccia quattro direzioni muovi croce', f:mkPoly([0.5,0, 0.68,0.2, 0.58,0.2, 0.58,0.42, 0.8,0.42, 0.8,0.32, 1,0.5, 0.8,0.68, 0.8,0.58, 0.58,0.58, 0.58,0.8, 0.68,0.8, 0.5,1, 0.32,0.8, 0.42,0.8, 0.42,0.58, 0.2,0.58, 0.2,0.68, 0,0.5, 0.2,0.32, 0.2,0.42, 0.42,0.42, 0.42,0.2, 0.32,0.2])},
+    {id:'uturn', n:'Freccia ad U', cat:'Frecce', kw:'freccia u inversione ritorno', f:function(c,l,t,w,h){ c.moveTo(l,t+h); c.lineTo(l,t+h*0.4); c.bezierCurveTo(l,t-h*0.1, l+w*0.7,t-h*0.1, l+w*0.7,t+h*0.4); c.lineTo(l+w*0.7,t+h*0.5); c.lineTo(l+w*0.55,t+h*0.5); c.lineTo(l+w*0.85,t+h*0.85); c.lineTo(l+w*1.0,t+h*0.5); c.lineTo(l+w*0.85,t+h*0.5); c.lineTo(l+w*0.85,t+h*0.4); c.bezierCurveTo(l+w*0.85,t+h*0.2, l+w*0.75,t, l+w*0.5,t); c.lineTo(l+w*0.35,t); c.bezierCurveTo(l+w*0.2,t,l+w*0.2,t+h*0.1,l+w*0.2,t+h*0.4); c.lineTo(l+w*0.2,t+h); c.closePath(); }},
+    {id:'heart', n:'Cuore', cat:'Simboli', kw:'cuore amore', f:function(c,l,t,w,h){ c.moveTo(l+w*0.5,t+h*0.95); c.bezierCurveTo(l-w*0.1,t+h*0.55, l+w*0.05,t-h*0.05, l+w*0.5,t+h*0.28); c.bezierCurveTo(l+w*0.95,t-h*0.05, l+w*1.1,t+h*0.55, l+w*0.5,t+h*0.95); c.closePath(); }},
+    {id:'plus', n:'Più / croce', cat:'Simboli', kw:'piu croce addizione somma plus', f:mkPoly([0.35,0, 0.65,0, 0.65,0.35, 1,0.35, 1,0.65, 0.65,0.65, 0.65,1, 0.35,1, 0.35,0.65, 0,0.65, 0,0.35, 0.35,0.35])},
+    {id:'xmark', n:'X / errore', cat:'Simboli', kw:'x croce errore sbagliato per moltiplicazione', f:mkPoly([0.2,0, 0.5,0.3, 0.8,0, 1,0.2, 0.7,0.5, 1,0.8, 0.8,1, 0.5,0.7, 0.2,1, 0,0.8, 0.3,0.5, 0,0.2])},
+    {id:'check', n:'Spunta', cat:'Simboli', kw:'spunta check ok giusto v', f:mkPoly([0,0.55, 0.15,0.4, 0.38,0.62, 0.85,0.08, 1,0.23, 0.38,0.95])},
+    {id:'crescent', n:'Luna', cat:'Simboli', kw:'luna mezzaluna notte', f:function(c,l,t,w,h){ c.moveTo(l+w*0.62,t+h*0.02); c.bezierCurveTo(l+w*0.1,t+h*0.02, l+w*0.1,t+h*0.98, l+w*0.62,t+h*0.98); c.bezierCurveTo(l+w*0.3,t+h*0.8, l+w*0.3,t+h*0.2, l+w*0.62,t+h*0.02); c.closePath(); }},
+    {id:'cloud', n:'Nuvola', cat:'Simboli', kw:'nuvola cloud pensiero meteo', f:function(c,l,t,w,h){ c.moveTo(l+w*0.25,t+h*0.85); c.bezierCurveTo(l-w*0.08,t+h*0.85, l-w*0.05,t+h*0.45, l+w*0.22,t+h*0.45); c.bezierCurveTo(l+w*0.2,t+h*0.1, l+w*0.55,t+h*0.0, l+w*0.6,t+h*0.3); c.bezierCurveTo(l+w*0.8,t+h*0.15, l+w*0.98,t+h*0.4, l+w*0.82,t+h*0.55); c.bezierCurveTo(l+w*1.05,t+h*0.65, l+w*0.95,t+h*0.9, l+w*0.75,t+h*0.85); c.closePath(); }},
+    {id:'lightning', n:'Fulmine', cat:'Simboli', kw:'fulmine lampo energia elettricita', f:mkPoly([0.55,0, 0.15,0.55, 0.45,0.55, 0.3,1, 0.85,0.4, 0.55,0.4, 0.75,0])},
+    {id:'drop', n:'Goccia', cat:'Simboli', kw:'goccia acqua', f:function(c,l,t,w,h){ c.moveTo(l+w*0.5,t); c.bezierCurveTo(l+w*0.55,t+h*0.25, l+w*0.95,t+h*0.5, l+w*0.95,t+h*0.68); c.bezierCurveTo(l+w*0.95,t+h*0.9, l+w*0.72,t+h, l+w*0.5,t+h); c.bezierCurveTo(l+w*0.28,t+h, l+w*0.05,t+h*0.9, l+w*0.05,t+h*0.68); c.bezierCurveTo(l+w*0.05,t+h*0.5, l+w*0.45,t+h*0.25, l+w*0.5,t); c.closePath(); }},
+    {id:'sun', n:'Sole', cat:'Simboli', kw:'sole raggi', f:function(c,l,t,w,h){ var cx=l+w/2, cy=t+h/2; ell(c,cx,cy,w*0.22,h*0.22); for(var i=0;i<8;i++){ var a=i*Math.PI/4; c.moveTo(cx+Math.cos(a)*w*0.32, cy+Math.sin(a)*h*0.32); c.lineTo(cx+Math.cos(a)*w*0.5, cy+Math.sin(a)*h*0.5); } }},
+    {id:'smile', n:'Faccina', cat:'Simboli', kw:'faccina sorriso smile viso felice', f:function(c,l,t,w,h){ var cx=l+w/2, cy=t+h/2; ell(c,cx,cy,w/2,h/2); ell(c,cx-w*0.17,cy-h*0.12,w*0.04,h*0.04); ell(c,cx+w*0.17,cy-h*0.12,w*0.04,h*0.04); c.moveTo(cx-w*0.26,cy+h*0.08); c.bezierCurveTo(cx-w*0.15,cy+h*0.35, cx+w*0.15,cy+h*0.35, cx+w*0.26,cy+h*0.08); }},
+    {id:'flag', n:'Bandiera', cat:'Simboli', kw:'bandiera segnale', f:function(c,l,t,w,h){ c.moveTo(l+w*0.08,t+h); c.lineTo(l+w*0.08,t); c.lineTo(l+w*0.95,t+h*0.2); c.lineTo(l+w*0.3,t+h*0.5); c.lineTo(l+w*0.08,t+h*0.5); }},
+    {id:'pin', n:'Segnaposto', cat:'Simboli', kw:'segnaposto pin mappa luogo posizione', f:function(c,l,t,w,h){ c.moveTo(l+w*0.5,t+h); c.bezierCurveTo(l+w*0.1,t+h*0.6, l,t+h*0.45, l,t+h*0.34); c.bezierCurveTo(l,t+h*0.12, l+w*0.22,t, l+w*0.5,t); c.bezierCurveTo(l+w*0.78,t, l+w,t+h*0.12, l+w,t+h*0.34); c.bezierCurveTo(l+w,t+h*0.45, l+w*0.9,t+h*0.6, l+w*0.5,t+h); c.closePath(); ell(c,l+w*0.5,t+h*0.34,w*0.14,h*0.1); }},
+    {id:'speech', n:'Fumetto', cat:'Fumetti', kw:'fumetto nuvoletta parlato', f:function(c,l,t,w,h){ var b=h*0.78, r=Math.min(w,b)*0.18; c.moveTo(l+r,t); c.lineTo(l+w-r,t); c.arcTo(l+w,t,l+w,t+r,r); c.lineTo(l+w,t+b-r); c.arcTo(l+w,t+b,l+w-r,t+b,r); c.lineTo(l+w*0.42,t+b); c.lineTo(l+w*0.2,t+h); c.lineTo(l+w*0.26,t+b); c.lineTo(l+r,t+b); c.arcTo(l,t+b,l,t+b-r,r); c.lineTo(l,t+r); c.arcTo(l,t,l+r,t,r); c.closePath(); }},
+    {id:'speechR', n:'Fumetto (coda a destra)', cat:'Fumetti', kw:'fumetto nuvoletta destra', f:function(c,l,t,w,h){ var b=h*0.78, r=Math.min(w,b)*0.18; c.moveTo(l+r,t); c.lineTo(l+w-r,t); c.arcTo(l+w,t,l+w,t+r,r); c.lineTo(l+w,t+b-r); c.arcTo(l+w,t+b,l+w-r,t+b,r); c.lineTo(l+w*0.74,t+b); c.lineTo(l+w*0.8,t+h); c.lineTo(l+w*0.58,t+b); c.lineTo(l+r,t+b); c.arcTo(l,t+b,l,t+b-r,r); c.lineTo(l,t+r); c.arcTo(l,t,l+r,t,r); c.closePath(); }},
+    {id:'speechEll', n:'Fumetto ovale', cat:'Fumetti', kw:'fumetto ovale nuvoletta', f:function(c,l,t,w,h){ var cx=l+w/2, cy=t+h*0.4, rx=w/2, ry=h*0.4, a0=Math.PI*0.62, a1=Math.PI*0.38+Math.PI*2; c.moveTo(cx+Math.cos(a0)*rx, cy+Math.sin(a0)*ry); c.ellipse(cx,cy,rx,ry,0,a0,a1); c.lineTo(l+w*0.22,t+h); c.closePath(); }},
+    {id:'thought', n:'Pensiero', cat:'Fumetti', kw:'pensiero nuvoletta pensare', f:function(c,l,t,w,h){ ell(c,l+w/2,t+h*0.4,w/2,h*0.4); ell(c,l+w*0.22,t+h*0.88,w*0.07,h*0.06); ell(c,l+w*0.1,t+h*0.97,w*0.04,h*0.03); }},
+    {id:'callout', n:'Didascalia rettangolare', cat:'Fumetti', kw:'didascalia callout etichetta nota', f:mkPoly([0,0, 1,0, 1,0.75, 0.45,0.75, 0.2,1, 0.25,0.75, 0,0.75])},
+    {id:'bracketL', n:'Parentesi quadra sinistra', cat:'Parentesi', kw:'parentesi quadra sinistra', f:function(c,l,t,w,h){ c.moveTo(l+w,t); c.lineTo(l,t); c.lineTo(l,t+h); c.lineTo(l+w,t+h); }},
+    {id:'bracketR', n:'Parentesi quadra destra', cat:'Parentesi', kw:'parentesi quadra destra', f:function(c,l,t,w,h){ c.moveTo(l,t); c.lineTo(l+w,t); c.lineTo(l+w,t+h); c.lineTo(l,t+h); }},
+    {id:'braceL', n:'Graffa sinistra', cat:'Parentesi', kw:'graffa parentesi sinistra', f:function(c,l,t,w,h){ c.moveTo(l+w,t); c.bezierCurveTo(l+w*0.4,t, l+w*0.6,t+h*0.45, l,t+h*0.5); c.bezierCurveTo(l+w*0.6,t+h*0.55, l+w*0.4,t+h, l+w,t+h); }},
+    {id:'braceR', n:'Graffa destra', cat:'Parentesi', kw:'graffa parentesi destra', f:function(c,l,t,w,h){ c.moveTo(l,t); c.bezierCurveTo(l+w*0.6,t, l+w*0.4,t+h*0.45, l+w,t+h*0.5); c.bezierCurveTo(l+w*0.4,t+h*0.55, l+w*0.6,t+h, l,t+h); }},
+    {id:'parenL', n:'Parentesi tonda sinistra', cat:'Parentesi', kw:'parentesi tonda sinistra', f:function(c,l,t,w,h){ c.moveTo(l+w,t); c.bezierCurveTo(l-w*0.2,t+h*0.2, l-w*0.2,t+h*0.8, l+w,t+h); }},
+    {id:'parenR', n:'Parentesi tonda destra', cat:'Parentesi', kw:'parentesi tonda destra', f:function(c,l,t,w,h){ c.moveTo(l,t); c.bezierCurveTo(l+w*1.2,t+h*0.2, l+w*1.2,t+h*0.8, l,t+h); }},
+    {id:'terminator', n:'Inizio / fine', cat:'Diagrammi', kw:'terminatore inizio fine capsula flusso diagramma', f:function(c,l,t,w,h){ rrect(c,l,t,w,h,h/2); }},
+    {id:'document', n:'Documento', cat:'Diagrammi', kw:'documento foglio flusso diagramma', f:function(c,l,t,w,h){ c.moveTo(l,t); c.lineTo(l+w,t); c.lineTo(l+w,t+h*0.85); c.bezierCurveTo(l+w*0.7,t+h*0.65, l+w*0.3,t+h*1.15, l,t+h*0.85); c.closePath(); }},
+    {id:'database', n:'Database', cat:'Diagrammi', kw:'database archivio dati cilindro disco', f:function(c,l,t,w,h){ var e=h*0.14; c.moveTo(l,t+e); c.ellipse(l+w/2,t+e,w/2,e,0,Math.PI,Math.PI*3); c.moveTo(l,t+e); c.lineTo(l,t+h-e); c.ellipse(l+w/2,t+h-e,w/2,e,0,Math.PI,0,true); c.lineTo(l+w,t+e); }},
+    {id:'predef', n:'Processo predefinito', cat:'Diagrammi', kw:'processo predefinito sottoprocesso flusso', f:function(c,l,t,w,h){ c.rect(l,t,w,h); c.moveTo(l+w*0.12,t); c.lineTo(l+w*0.12,t+h); c.moveTo(l+w*0.88,t); c.lineTo(l+w*0.88,t+h); }},
+    {id:'hexprep', n:'Preparazione', cat:'Diagrammi', kw:'preparazione esagono flusso', f:mkPoly([0.15,0, 0.85,0, 1,0.5, 0.85,1, 0.15,1, 0,0.5])},
+    {id:'cube', n:'Cubo', cat:'3D', kw:'cubo 3d scatola', f:function(c,l,t,w,h){ var d=Math.min(w,h)*0.28; c.rect(l,t+d,w-d,h-d); c.moveTo(l,t+d); c.lineTo(l+d,t); c.lineTo(l+w,t); c.lineTo(l+w-d,t+d); c.moveTo(l+w,t); c.lineTo(l+w,t+h-d); c.lineTo(l+w-d,t+h); c.moveTo(l+w-d,t+d); }},
+    {id:'cylinder', n:'Cilindro', cat:'3D', kw:'cilindro 3d barattolo', f:function(c,l,t,w,h){ var e=h*0.14; ell(c,l+w/2,t+e,w/2,e); c.moveTo(l,t+e); c.lineTo(l,t+h-e); c.ellipse(l+w/2,t+h-e,w/2,e,0,Math.PI,0,true); c.lineTo(l+w,t+e); }},
+    {id:'pyramid', n:'Piramide', cat:'3D', kw:'piramide 3d', f:function(c,l,t,w,h){ c.moveTo(l+w*0.5,t); c.lineTo(l+w,t+h*0.85); c.lineTo(l+w*0.55,t+h); c.lineTo(l,t+h*0.85); c.closePath(); c.moveTo(l+w*0.5,t); c.lineTo(l+w*0.55,t+h); }},
+    {id:'cone', n:'Cono', cat:'3D', kw:'cono 3d', f:function(c,l,t,w,h){ var e=h*0.12; c.moveTo(l+w/2,t); c.lineTo(l,t+h-e); c.ellipse(l+w/2,t+h-e,w/2,e,0,Math.PI,0,true); c.lineTo(l+w/2,t); }},
+    {id:'grid3', n:'Griglia 3×3', cat:'Altro', kw:'griglia tabella 3x3 riquadri tris', f:function(c,l,t,w,h){ c.rect(l,t,w,h); for(var i=1;i<3;i++){ c.moveTo(l+w*i/3,t); c.lineTo(l+w*i/3,t+h); c.moveTo(l,t+h*i/3); c.lineTo(l+w,t+h*i/3); } }},
+    {id:'table', n:'Tabella 2×3', cat:'Altro', kw:'tabella griglia righe colonne', f:function(c,l,t,w,h){ c.rect(l,t,w,h); c.moveTo(l+w/3,t); c.lineTo(l+w/3,t+h); c.moveTo(l+w*2/3,t); c.lineTo(l+w*2/3,t+h); c.moveTo(l,t+h/2); c.lineTo(l+w,t+h/2); }},
+    {id:'axes', n:'Assi cartesiani', cat:'Altro', kw:'assi cartesiani grafico piano xy', f:function(c,l,t,w,h){ c.moveTo(l+w*0.5,t+h); c.lineTo(l+w*0.5,t); c.moveTo(l+w*0.42,t+h*0.1); c.lineTo(l+w*0.5,t); c.lineTo(l+w*0.58,t+h*0.1); c.moveTo(l,t+h*0.5); c.lineTo(l+w,t+h*0.5); c.moveTo(l+w*0.9,t+h*0.4); c.lineTo(l+w,t+h*0.5); c.lineTo(l+w*0.9,t+h*0.6); }},
+    {id:'wave', n:'Onda', cat:'Altro', kw:'onda sinusoide seno', f:function(c,l,t,w,h){ c.moveTo(l,t+h*0.5); c.bezierCurveTo(l+w*0.12,t-h*0.1, l+w*0.38,t-h*0.1, l+w*0.5,t+h*0.5); c.bezierCurveTo(l+w*0.62,t+h*1.1, l+w*0.88,t+h*1.1, l+w,t+h*0.5); }},
+    {id:'zigzag', n:'Zig-zag', cat:'Altro', kw:'zigzag segnale denti', f:function(c,l,t,w,h){ c.moveTo(l,t+h); c.lineTo(l+w*0.2,t); c.lineTo(l+w*0.4,t+h); c.lineTo(l+w*0.6,t); c.lineTo(l+w*0.8,t+h); c.lineTo(l+w,t); }}
+  ];
+  var SHAPE_BY_ID = {}; SHAPE_DEFS.forEach(function(d){ SHAPE_BY_ID[d.id] = d; });
+  var SHAPE_CATS = ['Base','Poligoni','Stelle','Frecce','Simboli','Fumetti','Parentesi','Diagrammi','3D','Altro'];
   function shapePath(ctx, kind, x1, y1, x2, y2){
-    var l = Math.min(x1,x2), r = Math.max(x1,x2), t = Math.min(y1,y2), b = Math.max(y1,y2), cx = (l+r)/2, cy = (t+b)/2;
+    var l = Math.min(x1,x2), r = Math.max(x1,x2), t = Math.min(y1,y2), b = Math.max(y1,y2);
+    var d = SHAPE_BY_ID[kind] || SHAPE_BY_ID.ellipse;
     ctx.beginPath();
-    if(kind==='rect') ctx.rect(l, t, r-l, b-t);
-    else if(kind==='triangle'){ ctx.moveTo(cx,t); ctx.lineTo(r,b); ctx.lineTo(l,b); ctx.closePath(); }
-    else if(kind==='diamond'){ ctx.moveTo(cx,t); ctx.lineTo(r,cy); ctx.lineTo(cx,b); ctx.lineTo(l,cy); ctx.closePath(); }
-    else ctx.ellipse(cx, cy, Math.max(0.5,(r-l)/2), Math.max(0.5,(b-t)/2), 0, 0, Math.PI*2);
+    d.f(ctx, l, t, Math.max(0.5, r-l), Math.max(0.5, b-t));
   }
   function drawFullStroke(destCtx, stroke){
     if(stroke.type==='shape'){
@@ -1065,6 +1163,22 @@
       destCtx.fillStyle = stroke.color;
       destCtx.globalAlpha = 1;
       destCtx.lineWidth = stroke.width;
+      if(stroke.path && stroke.path.length >= 6){
+        // freccia curva: percorso lisciato salvato come [x0,y0,x1,y1,...]. L'inizio è il punto in cui è
+        // cominciato il tratto; la punta segue la direzione con cui il tratto arriva alla fine.
+        var q = stroke.path, m = q.length/2, k;
+        destCtx.beginPath(); destCtx.moveTo(q[0], q[1]);
+        for(k=1;k<m-1;k++){ destCtx.quadraticCurveTo(q[2*k], q[2*k+1], (q[2*k]+q[2*k+2])/2, (q[2*k+1]+q[2*k+3])/2); }
+        destCtx.lineTo(q[2*m-2], q[2*m-1]);
+        destCtx.stroke();
+        if(stroke.arrow){
+          var j = Math.max(0, m-1-3), ex = q[2*m-2], ey = q[2*m-1];
+          while(j>0 && Math.hypot(ex-q[2*j], ey-q[2*j+1]) < 6) j--;
+          drawArrowHead(destCtx, q[2*j], q[2*j+1], ex, ey, stroke.width);
+        }
+        destCtx.restore();
+        return;
+      }
       var curved = (typeof stroke.cx==='number' && typeof stroke.cy==='number');
       destCtx.beginPath(); destCtx.moveTo(stroke.x1, stroke.y1);
       if(curved) destCtx.quadraticCurveTo(stroke.cx, stroke.cy, stroke.x2, stroke.y2); else destCtx.lineTo(stroke.x2, stroke.y2);
@@ -1367,6 +1481,65 @@
     b.addEventListener('click', function(){ state.ui.shapeKind = b.getAttribute('data-shape'); markShapeButtons(); scheduleSync({light:true}); });
   });
   markShapeButtons();
+  var shapeMoreBtn = $('shapeMore'), shapeMoreIcon = $('shapeMoreIcon'), shapePop = null, shapeSearch = null, shapeGrid = null, shapeCatRow = null, shapeCat = '';
+  function drawShapeIcon(canvas, id, color){
+    var s = canvas.width, c = canvas.getContext('2d'), pad = s*0.14;
+    c.clearRect(0,0,s,s); c.strokeStyle = color; c.lineWidth = Math.max(1.6, s*0.06); c.lineJoin = 'round'; c.lineCap = 'round';
+    var d = SHAPE_BY_ID[id] || SHAPE_BY_ID.ellipse;
+    c.beginPath(); d.f(c, pad, pad, s-2*pad, s-2*pad); c.stroke();
+  }
+  function refreshShapeMore(){
+    var quick = ['ellipse','rect','triangle','diamond'].indexOf(state.ui.shapeKind) >= 0;
+    shapeMoreBtn.classList.toggle('active', !quick);
+    shapeMoreBtn.style.background = quick ? '' : 'var(--brass)'; shapeMoreBtn.style.color = quick ? '' : 'var(--ink-navy)';
+    drawShapeIcon(shapeMoreIcon, quick ? 'star5' : state.ui.shapeKind, quick ? '#c8ccd6' : '#1b2233');
+  }
+  function renderShapeGrid(){
+    var q = norm(shapeSearch.value).trim(), terms = q ? q.split(/\s+/) : [], shown = 0;
+    shapeGrid.innerHTML = '';
+    SHAPE_DEFS.forEach(function(d){
+      if(shapeCat && d.cat !== shapeCat) return;
+      var hay = norm(d.n+' '+d.kw+' '+d.cat);
+      for(var i=0;i<terms.length;i++) if(hay.indexOf(terms[i]) < 0) return;
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'sp-cell'+(d.id===state.ui.shapeKind?' on':''); b.title = d.n; b.setAttribute('aria-label', d.n);
+      var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; drawShapeIcon(cv, d.id, d.id===state.ui.shapeKind ? '#1b2233' : '#e8eaf0'); b.appendChild(cv);
+      b.addEventListener('click', function(){ state.ui.shapeKind = d.id; markShapeButtons(); refreshShapeMore(); closeShapePop(); scheduleSync({light:true}); });
+      shapeGrid.appendChild(b); shown++;
+    });
+    if(!shown){ var e = document.createElement('div'); e.id = 'shapeEmpty'; e.style.gridColumn = '1 / -1'; e.textContent = 'Nessuna forma trovata. Prova con "freccia", "stella", "cuore", "fumetto"…'; shapeGrid.appendChild(e); }
+  }
+  function buildShapePop(){
+    shapePop = document.createElement('div'); shapePop.id = 'shapePop';
+    shapeSearch = document.createElement('input'); shapeSearch.type = 'text'; shapeSearch.id = 'shapeSearch'; shapeSearch.autocomplete = 'off'; shapeSearch.placeholder = 'Cerca forma (es. stella, freccia, cuore, fumetto)…';
+    shapeSearch.addEventListener('input', renderShapeGrid);
+    shapeCatRow = document.createElement('div'); shapeCatRow.id = 'shapeCats';
+    ['Tutte'].concat(SHAPE_CATS).forEach(function(name){
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'cp-fam'+((name==='Tutte' && !shapeCat)?' on':''); b.textContent = name;
+      b.addEventListener('click', function(){ shapeCat = (name==='Tutte') ? '' : name; Array.prototype.forEach.call(shapeCatRow.children, function(x){ x.classList.toggle('on', x===b); }); renderShapeGrid(); });
+      shapeCatRow.appendChild(b);
+    });
+    shapeGrid = document.createElement('div'); shapeGrid.id = 'shapeGrid';
+    shapePop.appendChild(shapeSearch); shapePop.appendChild(shapeCatRow); shapePop.appendChild(shapeGrid);
+    shapePop.addEventListener('keydown', function(e){ if(e.key==='Escape') closeShapePop(); });
+    document.body.appendChild(shapePop);
+  }
+  function openShapePop(){
+    if(!shapePop) buildShapePop();
+    shapeSearch.value = ''; shapeCat = ''; Array.prototype.forEach.call(shapeCatRow.children, function(x, i){ x.classList.toggle('on', i===0); });
+    renderShapeGrid();
+    var r = shapeMoreBtn.getBoundingClientRect();
+    shapePop.style.display = 'block';
+    var w = shapePop.offsetWidth;
+    shapePop.style.left = Math.max(8, Math.min(r.left + r.width/2 - w/2, window.innerWidth - w - 8)) + 'px';
+    shapePop.style.bottom = (window.innerHeight - r.top + 12) + 'px';
+    setTimeout(function(){ try{ shapeSearch.focus(); }catch(e){} }, 0);
+  }
+  function closeShapePop(){ if(shapePop) shapePop.style.display = 'none'; }
+  shapeMoreBtn.addEventListener('click', function(){ if(shapePop && shapePop.style.display==='block') closeShapePop(); else openShapePop(); });
+  document.addEventListener('pointerdown', function(e){
+    if(shapePop && shapePop.style.display==='block' && !shapePop.contains(e.target) && !shapeMoreBtn.contains(e.target)) closeShapePop();
+  });
+  refreshShapeMore();
   arrowToggle.addEventListener('click', function(){
     state.ui.lineArrow = !state.ui.lineArrow;
     arrowToggle.classList.toggle('active', state.ui.lineArrow);
@@ -1399,25 +1572,51 @@
   // Coordinate assolute dentro la nota (la "pista" parte dalla cima della prima pagina).
   function getPos(e){ var rect = pagesTrack.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
   function widthForLine(setting){ return 1.4 + setting*0.55; }
-  /* Riga: se la penna disegna un percorso curvo, si adatta una curva (quadratica) liscia che parte dal
-     punto iniziale e arriva al punto finale; la curvatura la decidi tu col modo in cui muovi la penna.
-     Se il percorso è quasi dritto resta una riga dritta (con aggancio a orizzontale/verticale). */
-  function fitQuadCurve(path){
+  /* RIGA: sempre dritta (con aggancio a orizzontale/verticale entro 7°).
+     FRECCIA: l'inizio è fisso, nel punto in cui appoggi la penna; la fine segue la penna liberamente e la curva
+     è quella che disegni, ripulita dal tremolio. Niente più soglie "dritta/curva" che scattano da sole: se il
+     tratto è quasi dritto la freccia si raddrizza in modo graduale, se si curva la curvatura cresce piano piano.
+     La punta si orienta sulla direzione con cui il tratto arriva alla fine. */
+  function arrowCurve(path){
     var n = path.length; if(n < 4) return null;
-    var A = path[0], B = path[n-1], dx = B.x-A.x, dy = B.y-A.y, L = Math.sqrt(dx*dx+dy*dy);
-    if(L < 12) return null;
-    var maxDev = 0, i;
-    for(i=1;i<n-1;i++){ var d = Math.abs((path[i].x-A.x)*dy - (path[i].y-A.y)*dx) / L; if(d > maxDev) maxDev = d; }
-    if(maxDev < Math.max(7, 0.06*L)) return null;
-    var cum = [0]; for(i=1;i<n;i++) cum.push(cum[i-1] + Math.hypot(path[i].x-path[i-1].x, path[i].y-path[i-1].y));
-    var total = cum[n-1]; if(total < 1) return null;
-    var sw = 0, sx = 0, sy = 0;
-    for(i=1;i<n-1;i++){
-      var t = cum[i]/total, w = 2*t*(1-t), u = (1-t)*(1-t), v = t*t;
-      sw += w*w; sx += w*(path[i].x - u*A.x - v*B.x); sy += w*(path[i].y - u*A.y - v*B.y);
+    var A = path[0], B = path[n-1], dx = B.x-A.x, dy = B.y-A.y, L = Math.sqrt(dx*dx+dy*dy), i;
+    var plen = 0; for(i=1;i<n;i++) plen += Math.hypot(path[i].x-path[i-1].x, path[i].y-path[i-1].y);
+    if(plen < 24 || L < 12) return null;
+    // 1) ricampiona a passo costante (così il lisciamento non dipende dalla velocità della mano)
+    var step = Math.max(8, plen/150), pts = [{x:A.x, y:A.y}], acc = 0, prev = path[0];
+    for(i=1;i<n;i++){
+      var cur = path[i], seg = Math.hypot(cur.x-prev.x, cur.y-prev.y);
+      while(seg > 0 && acc+seg >= step){
+        var t = (step-acc)/seg;
+        prev = { x: prev.x+(cur.x-prev.x)*t, y: prev.y+(cur.y-prev.y)*t };
+        pts.push(prev); seg = Math.hypot(cur.x-prev.x, cur.y-prev.y); acc = 0;
+      }
+      acc += seg; prev = cur;
     }
-    if(sw < 1e-6) return null;
-    return { cx: sx/sw, cy: sy/sw };
+    var last = pts[pts.length-1];
+    if(pts.length > 2 && Math.hypot(B.x-last.x, B.y-last.y) < step*0.4) pts[pts.length-1] = {x:B.x, y:B.y};
+    else pts.push({x:B.x, y:B.y});
+    if(pts.length < 4) return null;
+    // 2) lisciamento (estremi fissi)
+    for(var pass=0; pass<6; pass++){
+      var cp = pts.map(function(p){ return {x:p.x, y:p.y}; });
+      for(i=1;i<pts.length-1;i++){ pts[i].x = 0.25*cp[i-1].x + 0.5*cp[i].x + 0.25*cp[i+1].x; pts[i].y = 0.25*cp[i-1].y + 0.5*cp[i].y + 0.25*cp[i+1].y; }
+    }
+    // 3) raddrizzamento graduale se il percorso è quasi una retta
+    var maxDev = 0;
+    for(i=1;i<pts.length-1;i++){ var d = Math.abs((pts[i].x-A.x)*dy - (pts[i].y-A.y)*dx) / L; if(d > maxDev) maxDev = d; }
+    var dev0 = Math.max(3, 0.012*L), dev1 = Math.max(10, 0.035*L);
+    var k = (maxDev-dev0)/(dev1-dev0); k = k<=0 ? 0 : (k>=1 ? 1 : k*k*(3-2*k));
+    if(plen > L*1.15 + 12) k = 1;               // ganci e inversioni: si conservano così come li hai disegnati
+    if(k <= 0) return null;
+    if(k < 1){
+      for(i=1;i<pts.length-1;i++){
+        var tt = ((pts[i].x-A.x)*dx + (pts[i].y-A.y)*dy) / (L*L), qx = A.x + tt*dx, qy = A.y + tt*dy;
+        pts[i].x = qx + k*(pts[i].x-qx); pts[i].y = qy + k*(pts[i].y-qy);
+      }
+    }
+    var flat = []; pts.forEach(function(p){ flat.push(round1(p.x), round1(p.y)); });
+    return flat;
   }
   function buildLineStroke(){
     if(!linePath.length) return null;
@@ -1425,10 +1624,14 @@
     if(Math.abs(B.x-A.x) <= 1 && Math.abs(B.y-A.y) <= 1) return null;
     var s = { type:'line', color: state.ui.penColor, width: widthForLine(state.ui.sizes.underline||3),
               x1: round1(A.x), y1: round1(A.y), x2: round1(B.x), y2: round1(B.y), arrow: !!state.ui.lineArrow };
-    var c = fitQuadCurve(linePath);
-    if(c){ s.cx = round1(c.cx); s.cy = round1(c.cy); return s; }
-    var ang = Math.atan2(B.y-A.y, B.x-A.x) * 180 / Math.PI, norm = ((ang % 360) + 360) % 360;
-    var near = function(t){ var d = Math.abs(norm-t); return d<7 || d>353; };
+    if(state.ui.lineArrow){
+      var flat = arrowCurve(linePath);
+      if(flat){ s.path = flat; s.x2 = flat[flat.length-2]; s.y2 = flat[flat.length-1]; return s; }
+    }
+    // dritta: aggancio a orizzontale/verticale (più stretto per le frecce, che devono poter ruotare)
+    var win = state.ui.lineArrow ? 4 : 7;
+    var ang = Math.atan2(B.y-A.y, B.x-A.x) * 180 / Math.PI, nrm = ((ang % 360) + 360) % 360;
+    var near = function(t){ var d = Math.abs(nrm-t); return d<win || d>360-win; };
     if(near(0) || near(180)) s.y2 = s.y1; else if(near(90) || near(270)) s.x2 = s.x1;
     return s;
   }
@@ -2295,12 +2498,21 @@
     }
 
     /* ---------- avvio ---------- */
+    var libPromise = null;
+    function loadLib(){
+      if(!libPromise){
+        var base = 'https://www.gstatic.com/firebasejs/' + FB_VERSION + '/';
+        libPromise = Promise.all([ import(base+'firebase-app.js'), import(base+'firebase-auth.js'), import(base+'firebase-firestore.js') ]);
+        libPromise.catch(function(){ libPromise = null; });
+      }
+      return libPromise;
+    }
+    function warm(){ if(configured) loadLib().catch(function(){}); }   // scarica Firebase mentre si leggono ancora le note dal telefono
     function start(){
       renderStatus();
       if(!configured || fb || loading) return;
       loading = true;
-      var base = 'https://www.gstatic.com/firebasejs/' + FB_VERSION + '/';
-      Promise.all([ import(base+'firebase-app.js'), import(base+'firebase-auth.js'), import(base+'firebase-firestore.js') ])
+      loadLib()
       .then(function(m){
         loading = false; loadFailed = false;
         fb = Object.assign({}, m[0], m[1], m[2]);
@@ -2364,7 +2576,7 @@
 
     function applyRemote(id, r, effects){
       var ru = r.updatedAt || 0;
-      remoteInfo[id] = { updatedAt: ru, chunks: r.chunks||0, deleted: !!r.deleted };
+      remoteInfo[id] = { updatedAt: ru, chunks: r.chunks||0, deleted: !!r.deleted, fmt: r.fmt||1, pageCount: r.pageCount||0, hashes: r.hashes||null };
       var local = findNote(id);
       var lu = local ? (local.updatedAt||0) : 0;
       if(r.deleted){
@@ -2379,7 +2591,10 @@
         return Promise.resolve();
       }
       if(meta.tomb[id] && meta.tomb[id] >= ru) return Promise.resolve(); // eliminata qui, in attesa di invio
-      if(local && lu >= ru) return Promise.resolve();                     // qui c'è già la stessa versione o una più nuova
+      if(local && lu >= ru){                                              // qui c'è già la stessa versione o una più nuova
+        if(lu===ru && (meta.pushed[id]||0) < ru) meta.pushed[id] = ru;    // identica al cloud: non serve rimandarla
+        return Promise.resolve();
+      }
       return fetchPages(id, r).then(function(pages){
         if(!pages) return; // salvataggio ancora in corso dall'altro dispositivo: arriverà col prossimo aggiornamento
         var isActive = activeNote && activeNote.id===id;
@@ -2399,6 +2614,7 @@
     }
 
     function fetchPages(id, r){
+      if(r.fmt === 2) return fetchPagesV2(id, r);
       var count = r.chunks||0;
       if(!count) return Promise.resolve([freshPageWithBg(r.bg||'lined')]);
       var reads = [];
@@ -2411,7 +2627,30 @@
           if(d.rev !== r.updatedAt) return null;
           parts.push(d.d||'');
         }
-        return unpack(parts.join(''));
+        return unpack(parts.join('')).then(function(p){ return Array.isArray(p) ? p : null; });
+      }).catch(function(e){ console.warn('Quaderno: lettura nota dal cloud non riuscita', e); return null; });
+    }
+
+    function fetchPagesV2(id, r){
+      var n = r.pageCount||0, hashes = r.hashes||[], cur = findNote(id);
+      if(!n) return Promise.resolve([freshPageWithBg(r.bg||'lined')]);
+      var reads = [], reuse = [];
+      for(var i=0;i<n;i++){
+        var lp = cur && cur.pages[i];
+        if(lp && hashes[i] && pageHash(lp)===hashes[i]){ reuse[i] = lp; reads.push(null); }   // pagina già uguale qui: non la riscarico
+        else reads.push(fb.getDoc(fb.doc(db, 'users', user.uid, 'notes', id, 'pages', String(i))));
+      }
+      return Promise.all(reads.map(function(rd, i){
+        if(!rd) return reuse[i];
+        return rd.then(function(d){
+          if(!d.exists()) return null;
+          var x = d.data();
+          if(hashes[i] && x.h !== hashes[i]) return null;      // l'altro dispositivo sta ancora salvando
+          return unpack(x.d||'');
+        });
+      })).then(function(pages){
+        for(var i=0;i<pages.length;i++) if(!pages[i] || typeof pages[i] !== 'object') return null;
+        return pages;
       }).catch(function(e){ console.warn('Quaderno: lettura nota dal cloud non riuscita', e); return null; });
     }
 
@@ -2443,7 +2682,7 @@
     function pushSoon(delay){
       if(!user) return;
       if(pushTimer) clearTimeout(pushTimer);
-      pushTimer = setTimeout(pushNow, delay==null ? 4000 : delay);
+      pushTimer = setTimeout(pushNow, delay==null ? 5000 : delay);
     }
     function pushNow(){
       pushTimer = null;
@@ -2472,7 +2711,54 @@
         retryTimer = setTimeout(function(){ pushSoon(0); }, 15000);
       });
     }
+    /* firma + impronta di una pagina (calcolata solo se la pagina è cambiata dall'ultima volta) */
+    var pageCache = new WeakMap();
+    function hashStr(s){
+      var h1 = 0x811c9dc5, h2 = 0x1b873593, i, c;
+      for(i=0;i<s.length;i++){ c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 + c, 0x5bd1e995) ^ (h2 >>> 13); }
+      return (h1>>>0).toString(36) + (h2>>>0).toString(36) + s.length.toString(36);
+    }
+    function pageHash(p){
+      var st = p.strokes, len = st.length, first = len ? st[0] : null, last = len ? st[len-1] : null, c = pageCache.get(p);
+      if(c && c.arr===st && c.len===len && c.first===first && c.last===last && c.bg===p.bg) return c.h;
+      var h = hashStr(JSON.stringify(p));
+      pageCache.set(p, { arr:st, len:len, first:first, last:last, bg:p.bg, h:h });
+      return h;
+    }
+    function delRange(batchList, uid, id, coll, from, to){
+      for(var j=from;j<to;j++) batchList.push({ del: fb.doc(db,'users',uid,'notes',id,coll,String(j)) });
+    }
     function pushNote(n){
+      var rev = n.updatedAt || Date.now();
+      var info = remoteInfo[n.id];
+      if(info && info.updatedAt > rev) return Promise.resolve(false); // nel cloud c'è già una versione più nuova
+      var uid = user.uid, hashes = n.pages.map(pageHash);
+      var sameFmt = info && info.fmt===2 && info.hashes;
+      var dirty = [];
+      for(var i=0;i<n.pages.length;i++){ if(!(sameFmt && info.hashes[i]===hashes[i])) dirty.push(i); }
+      return Promise.all(dirty.map(function(i){ return pack(n.pages[i]); })).then(function(strs){
+        for(var k=0;k<strs.length;k++){ if(strs[k].length > 900000) return pushNoteLegacy(n); }   // pagina eccezionalmente pesante
+        var ops = [];
+        dirty.forEach(function(i, k){ ops.push({ set: fb.doc(db,'users',uid,'notes',n.id,'pages',String(i)), data:{ d:strs[k], h:hashes[i] } }); });
+        if(info && info.fmt===2) delRange(ops, uid, n.id, 'pages', n.pages.length, info.pageCount||0);
+        else if(info && info.chunks>0) delRange(ops, uid, n.id, 'chunks', 0, info.chunks);   // migrazione dal vecchio formato
+        var header = { title:n.title||'', subject:n.subject||'', favorite:!!n.favorite, bg:n.bg||'lined',
+                       createdAt:n.createdAt||rev, updatedAt:rev, deleted:false, thumb:n.thumb||null, pageCount:n.pages.length,
+                       fmt:2, hashes:hashes, chunks:-1 };   // chunks:-1 = le vecchie versioni dell'app ignorano questa nota invece di svuotarla
+        var hdrOp = { set: fb.doc(db,'users',uid,'notes',n.id), data: header };
+        var groups = [], cur = [];
+        ops.forEach(function(o){ cur.push(o); if(cur.length>=400){ groups.push(cur); cur = []; } });
+        if(cur.length) groups.push(cur);
+        var chain = Promise.resolve();
+        groups.forEach(function(g){ chain = chain.then(function(){ var b = fb.writeBatch(db); g.forEach(function(o){ if(o.del) b.delete(o.del); else b.set(o.set, o.data); }); return b.commit(); }); });
+        return chain.then(function(){ var b = fb.writeBatch(db); b.set(hdrOp.set, hdrOp.data); return b.commit(); }).then(function(){
+          meta.pushed[n.id] = Math.max(meta.pushed[n.id]||0, rev);
+          remoteInfo[n.id] = { updatedAt:rev, chunks:-1, deleted:false, fmt:2, pageCount:n.pages.length, hashes:hashes };
+          return true;
+        });
+      });
+    }
+    function pushNoteLegacy(n){
       var rev = n.updatedAt || Date.now();
       var info = remoteInfo[n.id];
       if(info && info.updatedAt > rev) return Promise.resolve(false); // nel cloud c'è già una versione più nuova
@@ -2484,7 +2770,7 @@
         if(!chunks.length) chunks.push('');
         var uid = user.uid, batch = fb.writeBatch(db);
         chunks.forEach(function(c, i){ batch.set(fb.doc(db,'users',uid,'notes',n.id,'chunks',String(i)), { d:c, rev:rev }); });
-        var prev = info ? info.chunks : 0;
+        var prev = (info && info.chunks>0) ? info.chunks : 0;
         for(var j=chunks.length;j<prev;j++) batch.delete(fb.doc(db,'users',uid,'notes',n.id,'chunks',String(j)));
         header.chunks = chunks.length;
         batch.set(fb.doc(db,'users',uid,'notes',n.id), header);
@@ -2500,9 +2786,9 @@
       var info = remoteInfo[id];
       if(info && info.updatedAt > ts){ delete meta.tomb[id]; return Promise.resolve(); } // modificata altrove dopo l'eliminazione: la teniamo
       var uid = user.uid;
-      return fb.getDocs(fb.collection(db,'users',uid,'notes',id,'chunks')).then(function(qs){
+      return Promise.all([ fb.getDocs(fb.collection(db,'users',uid,'notes',id,'chunks')), fb.getDocs(fb.collection(db,'users',uid,'notes',id,'pages')) ]).then(function(rs){
         var batch = fb.writeBatch(db);
-        qs.forEach(function(d){ batch.delete(d.ref); });
+        rs.forEach(function(qs){ qs.forEach(function(d){ batch.delete(d.ref); }); });
         batch.set(fb.doc(db,'users',uid,'notes',id), { deleted:true, updatedAt:ts, chunks:0, title:'', subject:'', thumb:null });
         return batch.commit();
       }).then(function(){
@@ -2538,11 +2824,11 @@
     }
     function unpack(str){
       try{
-        if(str.slice(0,2)==='j:') return Promise.resolve(JSON.parse(str.slice(2)));
+        if(str.slice(0,2)==='j:'){ var jp = JSON.parse(str.slice(2)); return Promise.resolve((jp && typeof jp==='object') ? jp : null); }
         if(str.slice(0,2)==='g:'){
           if(typeof DecompressionStream === 'undefined') return Promise.resolve(null);
           var stream = new Blob([b64ToBytes(str.slice(2))]).stream().pipeThrough(new DecompressionStream('gzip'));
-          return new Response(stream).text().then(function(t){ var p = JSON.parse(t); return Array.isArray(p) ? p : null; });
+          return new Response(stream).text().then(function(t){ var p = JSON.parse(t); return (p && typeof p==='object') ? p : null; });
         }
       }catch(e){ console.warn(e); }
       return Promise.resolve(null);
@@ -2631,7 +2917,7 @@
       }).catch(function(){ showInfo('Questo file non sembra un backup di Quaderno.'); });
     });
 
-    return { start:start, schedulePush:function(){ pushSoon(); }, pushSoon:pushSoon, markDeleted:markDeleted };
+    return { start:start, warm:warm, schedulePush:function(){ pushSoon(); }, pushSoon:pushSoon, markDeleted:markDeleted };
   })();
 
   /* ===================== INIT / RESIZE ===================== */
@@ -2642,6 +2928,7 @@
   });
 
   function init(){
+    try{ cloud.warm(); }catch(e){}
     loadState();
     if(state.ui.sidebarCollapsed && !isMobileLayout()){ document.body.classList.add('no-anim','sb-collapsed'); void sidebar.offsetWidth; document.body.classList.remove('no-anim'); }
     setTool(state.ui.tool || 'pen');
